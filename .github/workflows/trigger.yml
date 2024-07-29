@@ -21,7 +21,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade setuptools
-          pip install cdstoolbox boto3 numpy numba scikit-learn python-dotenv
+          pip install cdsapi boto3 numpy numba scikit-learn python-dotenv
 
       - name: Set up environment variables
         env:
