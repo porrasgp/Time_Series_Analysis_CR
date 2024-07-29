@@ -8,6 +8,7 @@ on:
 jobs:
   retrieve-data:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
@@ -17,12 +18,16 @@ jobs:
         with:
           python-version: '3.x'
 
-      - name: Install cdsapi
-        run: pip install cdsapi
+      - name: Install dependencies
+        run: |
+          pip install cdsapi boto3 numpy numba scikit-learn python-dotenv
 
-      - name: Retrieve data from CDS
+      - name: Set up environment variables
         env:
           CDS_API_KEY: ${{ secrets.CDS_API_KEY }}
         run: |
           echo "url: https://cds.climate.copernicus.eu/api/v2" > ~/.cdsapirc
           echo "key: ${CDS_API_KEY}" >> ~/.cdsapirc
+
+      - name: Run data retrieval script
+        run: python retrieve_data.py
