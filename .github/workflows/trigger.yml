@@ -1,36 +1,28 @@
-name : trigger
+name: Retrieve Satellite CO2 Data
 
-on: [push]
+on:
+  push:
+    branches:
+      - main
 
 jobs:
-  run:
+  retrieve-data:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Set up CML
-        uses: iterative/setup-cml@v1
+        uses: actions/checkout@v2
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v2
         with:
           python-version: '3.x'
-          
-      - name: Install dependencies
-        run: |
-          pip install -r App/requirements.txt
 
-      
-      - name: Run App script
-        env:
-          CDS: ${{ CDS }}
-        run: |
-          python WebScrapper1.py
+      - name: Install cdsapi
+        run: pip install cdsapi
 
-      - name: Post CML Comment 
+      - name: Retrieve data from CDS
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB }}
+          CDS_API_KEY: ${{ secrets.CDS_API_KEY }}
         run: |
-          TOKEN=$(echo -n $GITHUB_TOKEN)
-          cml comment create report.md --token $TOKEN
+          echo "url: https://cds.climate.copernicus.eu/api/v2" > ~/.cdsapirc
+          echo "key: ${CDS_API_KEY}" >> ~/.cdsapirc
