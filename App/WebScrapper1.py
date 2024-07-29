@@ -1,39 +1,42 @@
-import requests
-from bs4 import BeautifulSoup
-import pandas as pd
+import cdsapi
 
-# Función para extraer una tabla de una página subastas
-def extract_table(url):
-    response = requests.get(url)
-    soup = BeautifulSoup(response.content, 'html.parser')
-    table_element = soup.find('table', attrs={'width': '84%', 'class': 'table mb-0'})
-    if table_element:
-        df = pd.read_html(str(table_element))[0]
-        return df
-    else:
-        return None
+# Create a client instance
+c = cdsapi.Client()
 
-# Función para extraer tablas de múltiples páginas y guardar cada DataFrame con el nombre de las subastas
-def extract_tables_multiple_pages(start_page, end_page, subastas):
-    for i in range(start_page, end_page + 1):
-        url = f"https://aurora-applnx.com/aurora_clientes/subastas/preciosViewHistorico.php?c={i}"
-        df = extract_table(url)
-        if df is not None:
-            if i <= len(subastas):
-                df_filename = f"C:/Users/Admin/Desktop/PrecioGanadoBot/data/{subastas[i-1]}.csv"
-                df.to_csv(df_filename, index=False)
-                print(f"Tabla {i} ({subastas[i-1]}) guardada en {df_filename}")
-            else:
-                print(f"No se encontró el nombre de la subasta correspondiente a la tabla {i}.")
-        else:
-            print(f"No se encontró la tabla en la página {i}.")
-
-# Rango de páginas a extraer (ejemplo: de la página 1 a la página 5)
-start_page = 1
-end_page = 7
-
-# Lista de nombres de las subastas
-subastas = ['Sancarleña', 'Barranca', 'Nicoya', 'Maleco', 'Upala', 'Limonal', 'Parrita']
-
-# Llamar a la función para extraer las tablas de múltiples páginas y guardar cada DataFrame con el nombre de las subastas
-extract_tables_multiple_pages(start_page, end_page, subastas)
+# Retrieve data
+c.retrieve(
+    'satellite-carbon-dioxide',
+    {
+        'processing_level': 'level_2',
+        'variable': 'xco2',
+        'sensor_and_algorithm': 'sciamachy_wfmd',
+        'year': [
+            '2002', '2003', '2004',
+            '2005', '2006', '2007',
+            '2008', '2009', '2010',
+            '2011', '2012',
+        ],
+        'month': [
+            '01', '02', '03',
+            '04', '05', '06',
+            '07', '08', '09',
+            '10', '11', '12',
+        ],
+        'day': [
+            '01', '02', '03',
+            '04', '05', '06',
+            '07', '08', '09',
+            '10', '11', '12',
+            '13', '14', '15',
+            '16', '17', '18',
+            '19', '20', '21',
+            '22', '23', '24',
+            '25', '26', '27',
+            '28', '29', '30',
+            '31',
+        ],
+        'version': '4.0',
+        'format': 'zip',
+    },
+    'download.zip'
+)
