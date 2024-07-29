@@ -8,6 +8,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.svm import SVC
 from sklearn.metrics import accuracy_score
 
+
 # Load environment variables (only needed if running locally with a .env file)
 if not os.getenv("GITHUB_ACTIONS"):
     from dotenv import load_dotenv
