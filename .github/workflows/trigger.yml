@@ -30,5 +30,8 @@ jobs:
           echo "url: https://cds.climate.copernicus.eu/api/v2" > ~/.cdsapirc
           echo "key: ${CDS_API_KEY}" >> ~/.cdsapirc
 
+      - name: Verify .cdsapirc file
+        run: cat ~/.cdsapirc
+
       - name: Run data retrieval script
         run: python App/retrieve_data.py
