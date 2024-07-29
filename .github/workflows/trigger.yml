@@ -4,8 +4,8 @@ on: [push]
 
 jobs : 
     print_mesagge:
-    runs-on: ubuntu-latest
+     runs-on: ubuntu-latest
 
-    steps: 
-    - name: Print a Message
-    run: echo "HOLA"
+     steps: 
+     - name: Print a Message
+       run: echo "HOLA"
