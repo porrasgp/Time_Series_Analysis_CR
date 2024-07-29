@@ -1,1 +1,11 @@
-XXXXXXXXXXXXXX
+name : trigger
+
+on: [push]
+
+jobs : 
+    print_mesagge:
+    runs-on: ubuntu-latest
+
+    steps: 
+    - name: Print a Message
+    run: echo "HOLA"
