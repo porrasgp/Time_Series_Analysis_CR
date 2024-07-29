@@ -2,10 +2,21 @@ name : trigger
 
 on: [push]
 
-jobs : 
-    print_mesagge:
-     runs-on: ubuntu-latest
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-     steps: 
-     - name: Print a Message
-       run: echo "HOLA"
+      - name: Set up CML
+        uses: iterative/setup-cml@v1
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+          
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
