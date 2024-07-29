@@ -1,4 +1,3 @@
-
 import cdsapi
 import os
 import boto3
@@ -7,17 +6,13 @@ import numba
 from sklearn.model_selection import train_test_split
 from sklearn.svm import SVC
 from sklearn.metrics import accuracy_score
-
+from dotenv import load_dotenv
 
 # Load environment variables (only needed if running locally with a .env file)
 if not os.getenv("GITHUB_ACTIONS"):
-    from dotenv import load_dotenv
     load_dotenv()
 
-CDS = os.getenv("CDS")
-
-# Your existing code here
-
+CDS_API_KEY = os.getenv("CDS_API_KEY")
 
 # Create a client instance
 c = cdsapi.Client()
