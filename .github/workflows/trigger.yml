@@ -27,11 +27,10 @@ jobs:
         env:
           CDS_API_KEY: ${{ secrets.CDS_API_KEY }}
         run: |
-          echo "url: https://cds.climate.copernicus.eu/api/v2" > ~/.cdsapirc
-          echo "key: ${CDS_API_KEY}" >> ~/.cdsapirc
+          echo '{"url": "https://cds.climate.copernicus.eu/api/v2", "key": "${CDS_API_KEY}"}' > ~/.cads-api-client.json
 
-      - name: Verify .cdsapirc file
-        run: cat ~/.cdsapirc
+      - name: Verify .cads-api-client.json file
+        run: cat ~/.cads-api-client.json
 
       - name: Run data retrieval script
         run: python App/retrieve_data.py
