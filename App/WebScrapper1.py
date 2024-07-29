@@ -2,7 +2,7 @@ import requests
 from bs4 import BeautifulSoup
 import pandas as pd
 
-# Función para extraer una tabla de una página
+# Función para extraer una tabla de una página subastas
 def extract_table(url):
     response = requests.get(url)
     soup = BeautifulSoup(response.content, 'html.parser')
