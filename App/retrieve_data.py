@@ -1,115 +1,48 @@
 import cdsapi
-import os
+import xarray as xr
+import matplotlib.pyplot as plt
+import numpy as np
 
 # Constants
 ECV = 'satellite-carbon-dioxide'
 VARIABLE = 'xco2'
-VERSIONS = ['3', '3.1', '4.1', '4.2', '4.3'][::-1]
-VERSION_END_YEARS = {
-    '3': 2016,
-    '3.1': 2017,
-    '4.1': 2018,
-    '4.2': 2019,
-    '4.3': 2019,
-}
-VERSION_YEARS = {
-    v: [str(x) for x in range(2003, VERSION_END_YEARS[v]+1)]
-    for v in VERSIONS
-}
+VERSION = '4.3'  # Example version
+YEAR = '2012'    # Example year
+MONTH = '01'     # Example month
 
-# Create a client instance
+# Initialize CDS API client
 c = cdsapi.Client()
 
-# Retrieve data function
-def retrieve_data(ecv, variable, version, years):
+# Retrieve data
+def retrieve_data(version, year, month):
     c.retrieve(
-        ecv,
+        ECV,
         {
-            'processing_level': 'level_2',
-            'variable': variable,
-            'sensor_and_algorithm': 'sciamachy_wfmd',
-            'year': years,
-            'month': [
-                '01', '02', '03', '04', '05', '06',
-                '07', '08', '09', '10', '11', '12'
-            ],
-            'day': [
-                '01', '02', '03', '04', '05', '06',
-                '07', '08', '09', '10', '11', '12',
-                '13', '14', '15', '16', '17', '18',
-                '19', '20', '21', '22', '23', '24',
-                '25', '26', '27', '28', '29', '30', '31'
-            ],
+            'processing_level': 'level_3',
+            'variable': VARIABLE,
+            'sensor_and_algorithm': 'merged_obs4mips',
             'version': version,
-            'format': 'zip'
+            'year': year,
+            'month': month,
+            'format': 'netcdf'
         },
-        f'data_{version}.zip'
+        f'data_{version}_{year}_{month}.nc'
     )
 
-# Loop through versions and retrieve data
-for version in VERSIONS:
-    years = VERSION_YEARS[version]
-    retrieve_data(ECV, VARIABLE, version, years)
-    print(f'Data for version {version} retrieved and saved.')
+# Call function to retrieve data
+retrieve_data(VERSION, YEAR, MONTH)
 
-# End of script
+# Load data with xarray
+def plot_data(filepath):
+    data = xr.open_dataset(filepath)
+    variable_data = data[VARIABLE].isel(time=0)  # Select the first time step for simplicity
 
-# Constants
-ECV = 'satellite-carbon-dioxide'
-VARIABLE = 'xco2'
-DISPLAY_UNITS = 'ppm'
-LEGEND_TITLE = 'Parts per million'
-VERSIONS = ['3', '3.1', '4.1', '4.2', '4.3'][::-1]
-VERSION_END_YEARS = {
-    '3': 2016,
-    '3.1': 2017,
-    '4.1': 2018,
-    '4.2': 2019,
-    '4.3': 2019,
-}
-BASELINE_2000, YEAR_CHANGE_RATE, C_RANGE = 360, 2, 15
-PALETTE = "eccharts_rainbow_purple_red_15"
-NCOLOURS = 15
-VERSION_YEARS = {
-    v: [str(x) for x in range(2003, VERSION_END_YEARS[v]+1)]
-    for v in VERSIONS
-}
+    # Plotting
+    plt.figure(figsize=(10, 5))
+    plt.title(f'{VARIABLE.upper()} - {YEAR}-{MONTH}')
+    variable_data.plot()
+    plt.colorbar(label='CO2 concentration (ppm)')
+    plt.show()
 
-# Create a client instance
-client = ct.Client()
-
-# Retrieve data function
-def retrieve_data(ecv, variable, version, years):
-    return client.retrieve(
-        ecv,
-        {
-            'processing_level': 'level_2',
-            'variable': variable,
-            'sensor_and_algorithm': 'sciamachy_wfmd',
-            'year': years,
-            'month': [
-                '01', '02', '03', '04', '05', '06',
-                '07', '08', '09', '10', '11', '12'
-            ],
-            'day': [
-                '01', '02', '03', '04', '05', '06',
-                '07', '08', '09', '10', '11', '12',
-                '13', '14', '15', '16', '17', '18',
-                '19', '20', '21', '22', '23', '24',
-                '25', '26', '27', '28', '29', '30', '31'
-            ],
-            'version': version,
-            'format': 'zip'
-        }
-    )
-
-# Loop through versions and retrieve data
-for version in VERSIONS:
-    years = VERSION_YEARS[version]
-    data = retrieve_data(ECV, VARIABLE, version, years)
-    # Save the data
-    with open(f'data_{version}.zip', 'wb') as f:
-        f.write(data.content)
-    print(f'Data for version {version} retrieved and saved.')
-
-# End of script
+# Plot retrieved data
+plot_data(f'data_{VERSION}_{YEAR}_{MONTH}.nc')
