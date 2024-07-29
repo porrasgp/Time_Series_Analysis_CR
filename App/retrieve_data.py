@@ -1,4 +1,3 @@
-import cdstoolbox as ct
 import cdsapi
 import os
 
