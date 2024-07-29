@@ -20,3 +20,17 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r App/requirements.txt
+
+      
+      - name: Run App script
+        env:
+          CDS: ${{ CDS }}
+        run: |
+          python WebScrapper1.py
+
+      - name: Post CML Comment 
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB }}
+        run: |
+          TOKEN=$(echo -n $GITHUB_TOKEN)
+          cml comment create report.md --token $TOKEN
