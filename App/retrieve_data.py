@@ -25,7 +25,7 @@ if not os.path.exists(folder_name):
 # Define the path to save the downloaded file
 file_path = os.path.join(folder_name, 'output.nc')
 
-# Retrieve the data and save it to the file specified 
+# Retrieve the data and save it to the specified file
 client.retrieve(dataset, request).download(file_path)
 
 print(f"Data has been saved to {file_path}")
