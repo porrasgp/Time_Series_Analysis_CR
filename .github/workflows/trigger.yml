@@ -36,3 +36,7 @@ jobs:
     - name: Run the main script
       working-directory: App
       run: python retrieve_data.py
+
+    - name: List contents of Data directory
+      working-directory: App
+      run: ls -la Data
