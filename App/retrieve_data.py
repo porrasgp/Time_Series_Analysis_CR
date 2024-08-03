@@ -13,6 +13,10 @@ AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 AWS_REGION = os.getenv("AWS_REGION")
 BUCKET_NAME = "geltonas.tech"
 
+# Ensure AWS_REGION is correctly set
+if not AWS_REGION:
+    raise ValueError("AWS_REGION environment variable is not set.")
+
 dataset = "sis-agroproductivity-indicators"
 request = {
     'product_family': ['crop_productivity_indicators'],
@@ -43,7 +47,7 @@ with tempfile.NamedTemporaryFile(delete=False) as temp_file:
             's3',
             aws_access_key_id=AWS_ACCESS_KEY_ID,
             aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
-            region_name=AWS_REGION
+            region_name=AWS_REGION  # Ensure this is correctly set
         )
 
         s3_key = 'App/Data/data.grib'
