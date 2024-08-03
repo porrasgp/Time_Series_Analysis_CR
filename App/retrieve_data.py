@@ -1,8 +1,6 @@
 import os
 import cdsapi
 import boto3
-import io
-import time
 from dotenv import load_dotenv
 
 # Load environment variables (only needed if running locally with a .env file)
@@ -27,30 +25,20 @@ request = {
 }
 
 client = cdsapi.Client()
+folder_name = 'App/Data'
+zip_file_path = os.path.join(folder_name, 'data.zip')
 
-# In-memory buffer
-buffer = io.BytesIO()
+# Ensure the directory exists
+os.makedirs(folder_name, exist_ok=True)
+
+print(f"Attempting to save data to: {zip_file_path}")
 
 try:
-    # Retrieve data
-    response = client.retrieve(dataset, request)
-
-    # Poll for job completion
-    while True:
-        status = response.status
-        if status == 'successful':
-            break
-        elif status == 'failed':
-            raise Exception("Data retrieval failed.")
-        else:
-            print("Waiting for data to be ready...")
-            time.sleep(30)  # Wait 30 seconds before checking again
-
-    # Download data into the buffer
-    response.download(buffer)
-    buffer.seek(0)  # Move to the start of the buffer
-
-    # Upload the buffer to S3
+    # Retrieve and download data
+    client.retrieve(dataset, request).download(zip_file_path)
+    print(f"Data download completed. File saved to: {zip_file_path}")
+    
+    # Upload the file to S3
     s3_client = boto3.client(
         's3',
         aws_access_key_id=AWS_ACCESS_KEY_ID,
@@ -59,8 +47,8 @@ try:
     )
 
     s3_key = 'App/Data/data.zip'
-    s3_client.upload_fileobj(buffer, BUCKET_NAME, s3_key)
+    s3_client.upload_file(zip_file_path, BUCKET_NAME, s3_key)
     print(f"File uploaded to S3 bucket {BUCKET_NAME} with key {s3_key}")
 
 except Exception as e:
-    print(f"Error: {e}")
+    print(f"Error: {e}") 
