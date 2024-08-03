@@ -20,8 +20,19 @@ jobs:
         pip install --upgrade pip
         pip install setuptools xarray cdsapi matplotlib
 
+    - name: List directory contents
+      run: ls -la App
+
     - name: Check .cdsapirc content
       run: cat App/.cdsapirc
 
-    - name: Run the script
+    - name: Copy .cdsapirc to home directory
+      run: cp App/.cdsapirc ~/.cdsapirc
+
+    - name: Test CDS API configuration
+      working-directory: App
+      run: python test_config.py
+
+    - name: Run the main script
+      working-directory: App
       run: python App/retrieve_data.py
