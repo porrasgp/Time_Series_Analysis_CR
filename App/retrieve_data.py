@@ -1,7 +1,8 @@
-import cdsapi
-import boto3
+import io
 import os
 import tempfile
+import cdsapi
+import boto3
 from dotenv import load_dotenv
 
 # Load environment variables (only needed if running locally with a .env file)
@@ -11,7 +12,7 @@ if not os.getenv("GITHUB_ACTIONS"):
 AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 AWS_REGION = os.getenv("AWS_REGION")
-BUCKET_NAME = "geltonas.tech"
+S3_ACCESS_POINT_ALIAS = "co2-5xjopk7xwb6i8jkm8njy6tdsgmecguse1a-s3alias"  # Alias de punto de acceso
 
 # Ensure AWS credentials and region are correctly set
 if not AWS_ACCESS_KEY_ID or not AWS_SECRET_ACCESS_KEY or not AWS_REGION:
@@ -33,6 +34,8 @@ request = {
 
 client = cdsapi.Client()
 
+# Choose one method to retrieve and upload data
+
 # Method 1: In-Memory Buffer
 try:
     buffer = io.BytesIO()
@@ -51,8 +54,8 @@ try:
     )
 
     s3_key = 'App/Data/data.grib'
-    s3_client.upload_fileobj(buffer, BUCKET_NAME, s3_key)
-    print(f"File uploaded to S3 bucket {BUCKET_NAME} with key {s3_key}")
+    s3_client.upload_fileobj(buffer, S3_ACCESS_POINT_ALIAS, s3_key)
+    print(f"File uploaded to S3 access point {S3_ACCESS_POINT_ALIAS} with key {s3_key}")
 
 except Exception as e:
     print(f"Error: {e}")
@@ -76,8 +79,8 @@ try:
         )
 
         s3_key = 'App/Data/data.grib'
-        s3_client.upload_file(temp_file_path, BUCKET_NAME, s3_key)
-        print(f"File uploaded to S3 bucket {BUCKET_NAME} with key {s3_key}")
+        s3_client.upload_file(temp_file_path, S3_ACCESS_POINT_ALIAS, s3_key)
+        print(f"File uploaded to S3 access point {S3_ACCESS_POINT_ALIAS} with key {s3_key}")
 
 except Exception as e:
     print(f"Error: {e}")
