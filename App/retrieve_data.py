@@ -1,11 +1,6 @@
-import cdsapi
 import os
+import cdsapi
 
-# Explicitly set the CDS API config path
-config_path = os.path.join(os.path.dirname(__file__), '.cdsapirc')
-os.environ['CDSAPI_CONFIG'] = config_path
-
-# Define the dataset and request parameters
 dataset = "sis-agroproductivity-indicators"
 request = {
     'product_family': ['crop_productivity_indicators'],
@@ -18,18 +13,18 @@ request = {
     'harvest_year': '2023'
 }
 
-# Initialize the CDS API client
 client = cdsapi.Client()
-
-# Define the folder where the data will be saved
 folder_name = 'App/Data'
-if not os.path.exists(folder_name):
-    os.makedirs(folder_name)
+zip_file_path = os.path.join(folder_name, 'data.zip')
 
-# Define the path to save the downloaded file
-file_path = os.path.join(folder_name, 'output.nc')
+# Ensure the directory exists
+os.makedirs(folder_name, exist_ok=True)
 
-# Retrieve the data and save it to the specified file
-client.retrieve(dataset, request).download(file_path)
+print(f"Attempting to save data to: {zip_file_path}")
 
-print(f"Data has been saved to {file_path}")
+try:
+    # Retrieve and download data
+    client.retrieve(dataset, request).download(zip_file_path)
+    print(f"Data download completed. File saved to: {zip_file_path}")
+except Exception as e:
+    print(f"Error downloading data: {e}")
