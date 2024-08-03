@@ -18,7 +18,7 @@ request = {
 client = cdsapi.Client()
 
 # Define the folder where the data will be saved
-folder_name = 'Data'
+folder_name = './Data'
 if not os.path.exists(folder_name):
     os.makedirs(folder_name)
 

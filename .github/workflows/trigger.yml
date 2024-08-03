@@ -25,5 +25,8 @@ jobs:
         echo "url: ${CDS_API_URL}" > ~/.cdsapirc
         echo "key: ${CDS_API_KEY}" >> ~/.cdsapirc
 
+    - name: Check .cdsapirc content
+      run: cat ~/.cdsapirc
+
     - name: Run the script
       run: python App/retrieve_data.py
