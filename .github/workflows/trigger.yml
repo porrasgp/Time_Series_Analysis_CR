@@ -24,4 +24,4 @@ jobs:
       run: cat App/.cdsapirc
 
     - name: Run the script
-      run: python retrieve_data.py
+      run: python App/retrieve_data.py
