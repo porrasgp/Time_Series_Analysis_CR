@@ -1,48 +1,80 @@
 import cdsapi
-import xarray as xr
-import matplotlib.pyplot as plt
-import numpy as np
-
-# Constants
-ECV = 'satellite-carbon-dioxide'
-VARIABLE = 'xco2'
-VERSION = '4.3'  # Example version
-YEAR = '2012'    # Example year
-MONTH = '01'     # Example month
+import boto3
+import os
 
 # Initialize CDS API client
-c = cdsapi.Client()
+client = cdsapi.Client()
 
-# Retrieve data
-def retrieve_data(version, year, month):
-    c.retrieve(
-        ECV,
-        {
-            'processing_level': 'level_3',
-            'variable': VARIABLE,
-            'sensor_and_algorithm': 'merged_obs4mips',
-            'version': version,
-            'year': year,
-            'month': month,
-            'format': 'netcdf'
-        },
-        f'data_{version}_{year}_{month}.nc'
-    )
+# Define the dataset and request parameters
+dataset = "sis-agroproductivity-indicators"
+request = {
+    'product_family': ['crop_productivity_indicators'],
+    'variable': ['total_above_ground_production'],
+    'crop_type': ['maize'],
+    'year': '2023',
+    'month': ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'],
+    'day': ['10', '20', '28', '30', '31'],
+    'growing_season': ['1st_season_per_campaign'],
+    'harvest_year': '2023'
+}
 
-# Call function to retrieve data
-retrieve_data(VERSION, YEAR, MONTH)
+# Retrieve the dataset
+output_filename = "agroproductivity_maize_2023.nc"
+client.retrieve(dataset, request).download(output_filename)
 
-# Load data with xarray
-def plot_data(filepath):
-    data = xr.open_dataset(filepath)
-    variable_data = data[VARIABLE].isel(time=0)  # Select the first time step for simplicity
+# AWS S3 configuration
+s3_bucket_name = 'your-s3-bucket-name'
+s3_key = f'path/in/bucket/{output_filename}'  # Customize the path as needed
 
-    # Plotting
-    plt.figure(figsize=(10, 5))
-    plt.title(f'{VARIABLE.upper()} - {YEAR}-{MONTH}')
-    variable_data.plot()
-    plt.colorbar(label='CO2 concentration (ppm)')
-    plt.show()
+# Initialize the S3 client
+s3_client = boto3.client('s3')
 
-# Plot retrieved data
-plot_data(f'data_{VERSION}_{YEAR}_{MONTH}.nc')
+# Upload the file to S3
+try:
+    s3_client.upload_file(output_filename, s3_bucket_name, s3_key)
+    print(f"File {output_filename} uploaded to s3://{s3_bucket_name}/{s3_key}")
+except Exception as e:
+    print(f"Error uploading file: {e}")
+
+# Clean up the local file if needed
+os.remove(output_filename)
+import cdsapi
+import boto3
+import os
+
+# Initialize CDS API client
+client = cdsapi.Client()
+
+# Define the dataset and request parameters
+dataset = "sis-agroproductivity-indicators"
+request = {
+    'product_family': ['crop_productivity_indicators'],
+    'variable': ['total_above_ground_production'],
+    'crop_type': ['maize'],
+    'year': '2023',
+    'month': ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'],
+    'day': ['10', '20', '28', '30', '31'],
+    'growing_season': ['1st_season_per_campaign'],
+    'harvest_year': '2023'
+}
+
+# Retrieve the dataset
+output_filename = "agroproductivity_maize_2023.nc"
+client.retrieve(dataset, request).download(output_filename)
+
+# AWS S3 configuration
+s3_bucket_name = 'your-s3-bucket-name'
+s3_key = f'path/in/bucket/{output_filename}'  # Customize the path as needed
+
+# Initialize the S3 client
+s3_client = boto3.client('s3')
+
+# Upload the file to S3
+try:
+    s3_client.upload_file(output_filename, s3_bucket_name, s3_key)
+    print(f"File {output_filename} uploaded to s3://{s3_bucket_name}/{s3_key}")
+except Exception as e:
+    print(f"Error uploading file: {e}")
+
+# Clean up the local file if needed
+os.remove(output_filename)
