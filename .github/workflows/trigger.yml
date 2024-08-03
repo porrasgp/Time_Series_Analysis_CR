@@ -22,10 +22,8 @@ jobs:
 
     - name: Configure CDS API credentials
       run: |
-        mkdir -p ~/.cdsapirc
-        echo "[cdsapi]" > ~/.cdsapirc
-        echo "url = ${CDS_API_URL}" >> ~/.cdsapirc
-        echo "key = ${CDS_API_KEY}" >> ~/.cdsapirc
+        echo "url: ${CDS_API_URL}" > ~/.cdsapirc
+        echo "key: ${CDS_API_KEY}" >> ~/.cdsapirc
 
     - name: Run the script
       run: python App/retrieve_data.py
