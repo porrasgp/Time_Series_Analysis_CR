@@ -7,10 +7,15 @@ from dotenv import load_dotenv
 if not os.getenv("GITHUB_ACTIONS"):
     load_dotenv()
 
+# Load environment variables
 AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 AWS_REGION = os.getenv("AWS_REGION")
 BUCKET_NAME = "geltonas.tech"
+
+# Check if environment variables are set
+if not all([AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION]):
+    raise ValueError("Missing required environment variables")
 
 dataset = "sis-agroproductivity-indicators"
 request = {
@@ -25,6 +30,8 @@ request = {
 }
 
 client = cdsapi.Client()
+
+# Define folder name and zip file path
 folder_name = 'App/Data'
 zip_file_path = os.path.join(folder_name, 'data.zip')
 
@@ -52,3 +59,4 @@ try:
 
 except Exception as e:
     print(f"Error: {e}")
+
