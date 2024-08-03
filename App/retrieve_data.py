@@ -11,7 +11,7 @@ if not os.getenv("GITHUB_ACTIONS"):
 
 AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
-AWS_REGION = os.getenv("AWS_REGION")
+AWS_REGION = "us-east-1"
 S3_ACCESS_POINT_ALIAS = "co2-5xjopk7xwb6i8jkm8njy6tdsgmecguse1a-s3alias"  # Alias de punto de acceso
 
 # Ensure AWS credentials and region are correctly set
