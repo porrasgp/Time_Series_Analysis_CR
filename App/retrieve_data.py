@@ -2,6 +2,7 @@ import os
 import cdsapi
 import boto3
 import io
+import time
 from dotenv import load_dotenv
 
 # Load environment variables (only needed if running locally with a .env file)
@@ -30,9 +31,30 @@ client = cdsapi.Client()
 # In-memory buffer
 buffer = io.BytesIO()
 
+def check_job_status(job_id):
+    """Function to check the status of a job"""
+    # CDS API doesn't provide a direct way to check status, so this function would be hypothetical
+    # You might need to rely on other mechanisms or wait for a fixed time
+    return "successful"
+
 try:
-    # Retrieve and download data directly into the buffer
-    client.retrieve(dataset, request).download(buffer)
+    # Retrieve data
+    response = client.retrieve(dataset, request)
+    job_id = response['request_id']  # Hypothetical, adjust as per actual API response
+
+    # Poll for job completion
+    while True:
+        status = check_job_status(job_id)
+        if status == 'successful':
+            break
+        elif status == 'failed':
+            raise Exception("Data retrieval failed.")
+        else:
+            print("Waiting for data to be ready...")
+            time.sleep(30)  # Wait 30 seconds before checking again
+
+    # Download data into the buffer
+    response.download(buffer)
     buffer.seek(0)  # Move to the start of the buffer
 
     # Upload the buffer to S3
