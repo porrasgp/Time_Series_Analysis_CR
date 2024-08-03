@@ -20,8 +20,8 @@ jobs:
         pip install --upgrade pip
         pip install setuptools xarray cdsapi matplotlib
 
-    - name: Copy .cdsapirc
-      run: cp config/.cdsapirc ~/.cdsapirc
+    - name: Check .cdsapirc content
+      run: cat .cdsapirc
 
     - name: Run the script
-      run: python App/retrieve_data.py
+      run: python retrieve_data.py
