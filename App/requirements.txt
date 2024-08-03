@@ -4,3 +4,4 @@ numpy
 numba
 scikit-learn
 cdsapi
+boto3
