@@ -1,8 +1,9 @@
 import cdsapi
 import os
 
-# Set the CDS API config path explicitly if needed
-os.environ['CDSAPI_CONFIG'] = os.path.join(os.path.dirname(__file__), '.cdsapirc')
+# Explicitly set the CDS API config path
+config_path = os.path.join(os.path.dirname(__file__), '.cdsapirc')
+os.environ['CDSAPI_CONFIG'] = config_path
 
 # Define the dataset and request parameters
 dataset = "sis-agroproductivity-indicators"
