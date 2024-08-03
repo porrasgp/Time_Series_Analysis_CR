@@ -18,10 +18,7 @@ jobs:
     - name: Install dependencies
       run: |
         pip install --upgrade pip
-        pip install setuptools xarray cdsapi matplotlib
-
-    - name: List directory contents
-      run: ls -la App
+        pip install setuptools xarray cdsapi matplotlib boto3 python-dotenv
 
     - name: Copy .cdsapirc to home directory
       run: cp App/.cdsapirc ~/.cdsapirc
@@ -29,7 +26,9 @@ jobs:
     - name: Run the main script
       working-directory: App
       run: python retrieve_data.py
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_REGION: ${{ secrets.AWS_REGION }}
 
-    - name: List contents of Data directory
-      working-directory: App
-      run: ls -la Data
+
