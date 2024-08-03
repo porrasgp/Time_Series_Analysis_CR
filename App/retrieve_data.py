@@ -1,21 +1,17 @@
 import os
 import cdsapi
 import boto3
+import io
 from dotenv import load_dotenv
 
 # Load environment variables (only needed if running locally with a .env file)
 if not os.getenv("GITHUB_ACTIONS"):
     load_dotenv()
 
-# Load environment variables
 AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 AWS_REGION = os.getenv("AWS_REGION")
 BUCKET_NAME = "geltonas.tech"
-
-# Check if environment variables are set
-if not all([AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION]):
-    raise ValueError("Missing required environment variables")
 
 dataset = "sis-agroproductivity-indicators"
 request = {
@@ -31,21 +27,15 @@ request = {
 
 client = cdsapi.Client()
 
-# Define folder name and zip file path
-folder_name = 'App/Data'
-zip_file_path = os.path.join(folder_name, 'data.zip')
-
-# Ensure the directory exists
-os.makedirs(folder_name, exist_ok=True)
-
-print(f"Attempting to save data to: {zip_file_path}")
+# In-memory buffer
+buffer = io.BytesIO()
 
 try:
-    # Retrieve and download data
-    client.retrieve(dataset, request).download(zip_file_path)
-    print(f"Data download completed. File saved to: {zip_file_path}")
-    
-    # Upload the file to S3
+    # Retrieve and download data directly into the buffer
+    client.retrieve(dataset, request).download(buffer)
+    buffer.seek(0)  # Move to the start of the buffer
+
+    # Upload the buffer to S3
     s3_client = boto3.client(
         's3',
         aws_access_key_id=AWS_ACCESS_KEY_ID,
@@ -54,9 +44,8 @@ try:
     )
 
     s3_key = 'App/Data/data.zip'
-    s3_client.upload_file(zip_file_path, BUCKET_NAME, s3_key)
+    s3_client.upload_fileobj(buffer, BUCKET_NAME, s3_key)
     print(f"File uploaded to S3 bucket {BUCKET_NAME} with key {s3_key}")
 
 except Exception as e:
     print(f"Error: {e}")
-
