@@ -1,5 +1,5 @@
+import io
 import os
-import tempfile
 import cdsapi
 import boto3
 from dotenv import load_dotenv
@@ -12,10 +12,6 @@ AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 AWS_REGION = os.getenv("AWS_REGION")
 BUCKET_NAME = "geltonas.tech"
-
-# Ensure AWS_REGION is correctly set
-if not AWS_REGION:
-    raise ValueError("AWS_REGION environment variable is not set.")
 
 dataset = "sis-agroproductivity-indicators"
 request = {
@@ -32,31 +28,27 @@ request = {
 
 client = cdsapi.Client()
 
-# Create a temporary file to store the data
-with tempfile.NamedTemporaryFile(delete=False) as temp_file:
-    temp_file_path = temp_file.name
-    print(f"Attempting to retrieve data to temporary file: {temp_file_path}")
+# In-memory buffer
+buffer = io.BytesIO()
 
-    try:
-        # Retrieve data and save it to the temporary file
-        client.retrieve(dataset, request).download(temp_file_path)
-        print(f"Data download completed. File saved to: {temp_file_path}")
-        
-        # Upload the temporary file to S3
-        s3_client = boto3.client(
-            's3',
-            aws_access_key_id=AWS_ACCESS_KEY_ID,
-            aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
-            region_name=AWS_REGION  # Ensure this is correctly set
-        )
+print("Attempting to retrieve and upload data directly to S3...")
 
-        s3_key = 'App/Data/data.grib'
-        s3_client.upload_file(temp_file_path, BUCKET_NAME, s3_key)
-        print(f"File uploaded to S3 bucket {BUCKET_NAME} with key {s3_key}")
+try:
+    # Retrieve data and save it to the buffer
+    client.retrieve(dataset, request).download(target=None, callback=lambda data: buffer.write(data))
+    buffer.seek(0)  # Go back to the start of the buffer
 
-    except Exception as e:
-        print(f"Error: {e}")
+    # Upload the buffer content to S3
+    s3_client = boto3.client(
+        's3',
+        aws_access_key_id=AWS_ACCESS_KEY_ID,
+        aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+        region_name=AWS_REGION
+    )
 
-    finally:
-        # Clean up the temporary file
-        os.remove(temp_file_path)
+    s3_key = 'App/Data/data.grib'
+    s3_client.upload_fileobj(buffer, BUCKET_NAME, s3_key)
+    print(f"File uploaded to S3 bucket {BUCKET_NAME} with key {s3_key}")
+
+except Exception as e:
+    print(f"Error: {e}")
