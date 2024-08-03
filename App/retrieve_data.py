@@ -1,8 +1,7 @@
-import io
-import os
-import tempfile
 import cdsapi
 import boto3
+import os
+import tempfile
 from dotenv import load_dotenv
 
 # Load environment variables (only needed if running locally with a .env file)
@@ -11,12 +10,12 @@ if not os.getenv("GITHUB_ACTIONS"):
 
 AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
-AWS_REGION = 'us-east-1'
-BUCKET_NAME = 'geltonas.tech'
+AWS_REGION = os.getenv("AWS_REGION")
+BUCKET_NAME = "geltonas.tech"
 
-# Ensure AWS_REGION is correctly set
-if not AWS_REGION:
-    raise ValueError("AWS_REGION environment variable is not set.")
+# Ensure AWS credentials and region are correctly set
+if not AWS_ACCESS_KEY_ID or not AWS_SECRET_ACCESS_KEY or not AWS_REGION:
+    raise ValueError("AWS credentials or region are not set properly.")
 
 # Define dataset and request
 dataset = "sis-agroproductivity-indicators"
@@ -34,16 +33,13 @@ request = {
 
 client = cdsapi.Client()
 
-# Choose one method to retrieve and upload data
-
 # Method 1: In-Memory Buffer
 try:
     buffer = io.BytesIO()
-
     print("Attempting to retrieve and upload data directly to S3...")
 
     # Retrieve data and save it to the buffer
-    client.retrieve(dataset, request).download(target=None, callback=lambda data: buffer.write(data))
+    client.retrieve(dataset, request).download(target=None)
     buffer.seek(0)  # Go back to the start of the buffer
 
     # Upload the buffer content to S3
