@@ -31,20 +31,13 @@ client = cdsapi.Client()
 # In-memory buffer
 buffer = io.BytesIO()
 
-def check_job_status(job_id):
-    """Function to check the status of a job"""
-    # CDS API doesn't provide a direct way to check status, so this function would be hypothetical
-    # You might need to rely on other mechanisms or wait for a fixed time
-    return "successful"
-
 try:
     # Retrieve data
     response = client.retrieve(dataset, request)
-    job_id = response['request_id']  # Hypothetical, adjust as per actual API response
 
     # Poll for job completion
     while True:
-        status = check_job_status(job_id)
+        status = response.status
         if status == 'successful':
             break
         elif status == 'failed':
