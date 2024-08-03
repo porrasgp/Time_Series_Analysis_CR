@@ -35,4 +35,4 @@ jobs:
 
     - name: Run the main script
       working-directory: App
-      run: python App/retrieve_data.py
+      run: python retrieve_data.py
