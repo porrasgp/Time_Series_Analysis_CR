@@ -2,6 +2,7 @@ import cdsapi
 import boto3
 import os
 import tempfile
+import io
 from dotenv import load_dotenv
 
 # Load environment variables (only needed if running locally with a .env file)
@@ -28,7 +29,7 @@ request = {
     'day': ['10', '20', '28', '30', '31'],
     'growing_season': ['1st_season_per_campaign'],
     'harvest_year': '2023',
-    'data_format': 'grib'
+    'data_format': 'zip'
 }
 
 client = cdsapi.Client()
@@ -50,7 +51,7 @@ try:
         region_name=AWS_REGION
     )
 
-    s3_key = './data.grib'
+    s3_key = 'data.zip'
     s3_client.upload_fileobj(buffer, BUCKET_NAME, s3_key)
     print(f"File uploaded to S3 bucket {BUCKET_NAME} with key {s3_key}")
 
@@ -75,7 +76,7 @@ try:
             region_name=AWS_REGION
         )
 
-        s3_key = 'App/Data/data.grib'
+        s3_key = 'App/Data/data.zip'
         s3_client.upload_file(temp_file_path, BUCKET_NAME, s3_key)
         print(f"File uploaded to S3 bucket {BUCKET_NAME} with key {s3_key}")
 
