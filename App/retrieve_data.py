@@ -55,7 +55,7 @@ try:
                 region_name=AWS_REGION
             )
 
-            s3_key = './CO2.zip'
+            s3_key = 'CO2.zip'
             s3_client.upload_file(temp_file_path, BUCKET_NAME, s3_key)
             print(f"File uploaded to S3 bucket {BUCKET_NAME} with key {s3_key}")
         else:
