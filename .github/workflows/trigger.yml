@@ -18,7 +18,7 @@ jobs:
     - name: Install dependencies
       run: |
         pip install --upgrade pip
-        pip install setuptools xarray cdsapi matplotlib boto3 python-dotenv numba netCDF4
+        pip install setuptools xarray cdsapi matplotlib boto3 python-dotenv numba netCDF4 scikit-learn
               
 
     - name: Copy .cdsapirc to home directory
