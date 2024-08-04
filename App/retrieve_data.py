@@ -1,9 +1,9 @@
-import cdsapi
 import boto3
 import os
 import tempfile
 import io
 from dotenv import load_dotenv
+import cdsapi
 
 # Load environment variables (only needed if running locally with a .env file)
 if not os.getenv("GITHUB_ACTIONS"):
@@ -33,34 +33,6 @@ request = {
 }
 
 client = cdsapi.Client()
-
-# Method 1: In-Memory Buffer
-try:
-    buffer = io.BytesIO()
-    print("Attempting to retrieve and upload data directly to S3...")
-
-    # Retrieve data and save it to the buffer
-    response = client.retrieve(dataset, request)
-    response.download(target=None)  # This may require specific handling
-    buffer.seek(0)  # Go back to the start of the buffer
-
-    if buffer.getvalue():
-        # Upload the buffer content to S3
-        s3_client = boto3.client(
-            's3',
-            aws_access_key_id=AWS_ACCESS_KEY_ID,
-            aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
-            region_name=AWS_REGION
-        )
-
-        s3_key = 'data.zip'
-        s3_client.upload_fileobj(buffer, BUCKET_NAME, s3_key)
-        print(f"File uploaded to S3 bucket {BUCKET_NAME} with key {s3_key}")
-    else:
-        print("Buffer is empty. No data was retrieved.")
-
-except Exception as e:
-    print(f"Error: {e}")
 
 # Method 2: Temporary File
 try:
