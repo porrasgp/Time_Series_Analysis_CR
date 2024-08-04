@@ -50,7 +50,7 @@ try:
         region_name=AWS_REGION
     )
 
-    s3_key = 'App/Data/data.grib'
+    s3_key = './data.grib'
     s3_client.upload_fileobj(buffer, BUCKET_NAME, s3_key)
     print(f"File uploaded to S3 bucket {BUCKET_NAME} with key {s3_key}")
 
