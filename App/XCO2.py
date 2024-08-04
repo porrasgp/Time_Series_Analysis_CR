@@ -5,6 +5,9 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from netCDF4 import Dataset
+from sklearn.model_selection import train_test_split
+from sklearn.svm import SVC
+from sklearn.metrics import accuracy_score
 from dotenv import load_dotenv
 
 # Cargar variables de entorno (solo necesario si se ejecuta localmente con un archivo .env)
@@ -41,12 +44,22 @@ def download_and_extract_zip(file_key, extract_to='/tmp'):
     extracted_files = os.listdir(extract_to)
     return [os.path.join(extract_to, file) for file in extracted_files if file.endswith('.nc')]
 
+# Imprimir información sobre las variables del archivo NetCDF
+def print_netcdf_info(file_path):
+    with Dataset(file_path, 'r') as nc_file:
+        print("Variables disponibles en el archivo NetCDF:")
+        for var_name in nc_file.variables:
+            print(f"Variable: {var_name}")
+
 # Cargar datos desde un archivo NetCDF
 def load_data_from_netcdf(file_path):
     with Dataset(file_path, 'r') as nc_file:
+        # Imprimir variables disponibles para depuración
+        print_netcdf_info(file_path)
+        
         # Acceder a las variables
         time = nc_file.variables['time'][:]
-        xco2 = nc_file.variables['XCO2'][:]
+        xco2 = nc_file.variables['XCO2'][:]  # Cambiar 'XCO2' si es necesario
         lat = nc_file.variables['latitude'][:]
         lon = nc_file.variables['longitude'][:]
         
