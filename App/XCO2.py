@@ -6,8 +6,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from netCDF4 import Dataset
 from sklearn.model_selection import train_test_split
-from sklearn.svm import SVC
-from sklearn.metrics import accuracy_score
+from sklearn.svm import SVR  # Cambiado a SVR
+from sklearn.metrics import mean_squared_error  # Cambiado a mean_squared_error
 from dotenv import load_dotenv
 
 # Cargar variables de entorno (solo necesario si se ejecuta localmente con un archivo .env)
@@ -83,7 +83,7 @@ def plot_data(df):
     plt.title('CO2 Concentration by Location')
     plt.show()
 
-# Entrenar un modelo SVM
+# Entrenar un modelo SVR
 def train_model(df):
     # Seleccionar características y objetivo
     X = df[['latitude', 'longitude']]
@@ -93,16 +93,16 @@ def train_model(df):
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
     
     # Crear y entrenar el modelo
-    model = SVC(kernel='linear')
+    model = SVR(kernel='linear')  # Cambiado a SVR
     model.fit(X_train, y_train)
     
     # Hacer predicciones
     y_pred = model.predict(X_test)
     
     # Evaluar el modelo
-    accuracy = accuracy_score(y_test, y_pred)
+    mse = mean_squared_error(y_test, y_pred)  # Cambiado a mean_squared_error
     
-    print(f"Accuracy Score: {accuracy:.2f}")
+    print(f"Mean Squared Error: {mse:.2f}")
     
     return model
 
