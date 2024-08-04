@@ -19,18 +19,18 @@ if not AWS_ACCESS_KEY_ID or not AWS_SECRET_ACCESS_KEY or not AWS_REGION:
     raise ValueError("AWS credentials or region are not set properly.")
 
 # Define dataset and request
-dataset = "sis-agroproductivity-indicators"
+dataset = "satellite-carbon-dioxide"
 request = {
-    'product_family': ['crop_productivity_indicators'],
-    'variable': ['total_above_ground_production'],
-    'crop_type': ['maize'],
-    'year': '2023',
+    'processing_level': ['level_2'],
+    'variable': 'co2',
+    'sensor_and_algorithm': 'iasi_metop_a_nlis',
+    'year': ['2020', '2021'],
     'month': ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'],
-    'day': ['10', '20', '28', '30', '31'],
-    'growing_season': ['1st_season_per_campaign'],
-    'harvest_year': '2023',
+    'day': ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', '23', '24', '25', '26', '27', '28', '29', '30', '31'],
+    'version': ['10_1'],
     'data_format': 'zip'
 }
+
 
 client = cdsapi.Client()
 
@@ -55,7 +55,7 @@ try:
                 region_name=AWS_REGION
             )
 
-            s3_key = 'App/Data/data.zip'
+            s3_key = './CO2.zip'
             s3_client.upload_file(temp_file_path, BUCKET_NAME, s3_key)
             print(f"File uploaded to S3 bucket {BUCKET_NAME} with key {s3_key}")
         else:
