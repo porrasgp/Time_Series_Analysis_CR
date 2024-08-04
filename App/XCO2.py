@@ -59,14 +59,14 @@ def load_data_from_netcdf(file_path):
         
         # Acceder a las variables
         time = nc_file.variables['time'][:]
-        xco2 = nc_file.variables['XCO2'][:]  # Cambiar 'XCO2' si es necesario
+        co2 = nc_file.variables['co2'][:]  # Cambiado a 'co2'
         lat = nc_file.variables['latitude'][:]
         lon = nc_file.variables['longitude'][:]
         
         # Crear un DataFrame
         df = pd.DataFrame({
             'time': time,
-            'XCO2': xco2,
+            'co2': co2,  # Cambiado a 'co2'
             'latitude': lat,
             'longitude': lon
         })
@@ -76,8 +76,8 @@ def load_data_from_netcdf(file_path):
 # Visualizar los datos
 def plot_data(df):
     plt.figure(figsize=(12, 6))
-    plt.scatter(df['longitude'], df['latitude'], c=df['XCO2'], cmap='viridis', s=10)
-    plt.colorbar(label='XCO2 (ppm)')
+    plt.scatter(df['longitude'], df['latitude'], c=df['co2'], cmap='viridis', s=10)
+    plt.colorbar(label='CO2 (ppm)')
     plt.xlabel('Longitude')
     plt.ylabel('Latitude')
     plt.title('CO2 Concentration by Location')
@@ -87,7 +87,7 @@ def plot_data(df):
 def train_model(df):
     # Seleccionar características y objetivo
     X = df[['latitude', 'longitude']]
-    y = df['XCO2']
+    y = df['co2']  # Cambiado a 'co2'
     
     # Dividir los datos en conjunto de entrenamiento y prueba
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
