@@ -40,20 +40,24 @@ try:
     print("Attempting to retrieve and upload data directly to S3...")
 
     # Retrieve data and save it to the buffer
-    client.retrieve(dataset, request).download(target=None)
+    response = client.retrieve(dataset, request)
+    response.download(target=None)  # This may require specific handling
     buffer.seek(0)  # Go back to the start of the buffer
 
-    # Upload the buffer content to S3
-    s3_client = boto3.client(
-        's3',
-        aws_access_key_id=AWS_ACCESS_KEY_ID,
-        aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
-        region_name=AWS_REGION
-    )
+    if buffer.getvalue():
+        # Upload the buffer content to S3
+        s3_client = boto3.client(
+            's3',
+            aws_access_key_id=AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+            region_name=AWS_REGION
+        )
 
-    s3_key = 'data.zip'
-    s3_client.upload_fileobj(buffer, BUCKET_NAME, s3_key)
-    print(f"File uploaded to S3 bucket {BUCKET_NAME} with key {s3_key}")
+        s3_key = 'data.zip'
+        s3_client.upload_fileobj(buffer, BUCKET_NAME, s3_key)
+        print(f"File uploaded to S3 bucket {BUCKET_NAME} with key {s3_key}")
+    else:
+        print("Buffer is empty. No data was retrieved.")
 
 except Exception as e:
     print(f"Error: {e}")
@@ -65,20 +69,25 @@ try:
         print(f"Attempting to retrieve data to temporary file: {temp_file_path}")
 
         # Retrieve data and save it to the temporary file
-        client.retrieve(dataset, request).download(temp_file_path)
+        response = client.retrieve(dataset, request)
+        response.download(temp_file_path)
         print(f"Data download completed. File saved to: {temp_file_path}")
 
-        # Upload the temporary file to S3
-        s3_client = boto3.client(
-            's3',
-            aws_access_key_id=AWS_ACCESS_KEY_ID,
-            aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
-            region_name=AWS_REGION
-        )
+        # Check if file is empty
+        if os.path.getsize(temp_file_path) > 0:
+            # Upload the temporary file to S3
+            s3_client = boto3.client(
+                's3',
+                aws_access_key_id=AWS_ACCESS_KEY_ID,
+                aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+                region_name=AWS_REGION
+            )
 
-        s3_key = 'App/Data/data.zip'
-        s3_client.upload_file(temp_file_path, BUCKET_NAME, s3_key)
-        print(f"File uploaded to S3 bucket {BUCKET_NAME} with key {s3_key}")
+            s3_key = 'App/Data/data.zip'
+            s3_client.upload_file(temp_file_path, BUCKET_NAME, s3_key)
+            print(f"File uploaded to S3 bucket {BUCKET_NAME} with key {s3_key}")
+        else:
+            print("Temporary file is empty. No data was retrieved.")
 
 except Exception as e:
     print(f"Error: {e}")
