@@ -1,26 +1,24 @@
 import os
 import boto3
-import numpy as np
-import numba
+import zipfile
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
 from netCDF4 import Dataset
-from sklearn.model_selection import train_test_split
-from sklearn.svm import SVC
-from sklearn.metrics import accuracy_score
+from dotenv import load_dotenv
 
 # Cargar variables de entorno (solo necesario si se ejecuta localmente con un archivo .env)
 if not os.getenv("GITHUB_ACTIONS"):
-    from dotenv import load_dotenv
     load_dotenv()
 
 AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 AWS_REGION = "us-east-1"
 BUCKET_NAME = "geltonas.tech"
+ZIP_FILE_KEY = "CO2.zip"
 
-# Cargar datos desde un archivo NetCDF en S3
-def load_data_from_s3(file_key):
+# Descargar y descomprimir archivo desde S3
+def download_and_extract_zip(file_key, extract_to='/tmp'):
     s3_client = boto3.client(
         's3',
         aws_access_key_id=AWS_ACCESS_KEY_ID,
@@ -28,13 +26,24 @@ def load_data_from_s3(file_key):
         region_name=AWS_REGION
     )
     
+    # Descargar el archivo ZIP
     response = s3_client.get_object(Bucket=BUCKET_NAME, Key=file_key)
-    data = response['Body'].read()
+    zip_file_path = os.path.join(extract_to, 'temp_file.zip')
     
-    with open('/tmp/temp_file.nc', 'wb') as temp_file:
-        temp_file.write(data)
+    with open(zip_file_path, 'wb') as zip_file:
+        zip_file.write(response['Body'].read())
     
-    with Dataset('/tmp/temp_file.nc', 'r') as nc_file:
+    # Descomprimir el archivo ZIP
+    with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
+        zip_ref.extractall(extract_to)
+    
+    # Listar archivos descomprimidos
+    extracted_files = os.listdir(extract_to)
+    return [os.path.join(extract_to, file) for file in extracted_files if file.endswith('.nc')]
+
+# Cargar datos desde un archivo NetCDF
+def load_data_from_netcdf(file_path):
+    with Dataset(file_path, 'r') as nc_file:
         # Acceder a las variables
         time = nc_file.variables['time'][:]
         xco2 = nc_file.variables['XCO2'][:]
@@ -84,14 +93,21 @@ def train_model(df):
     
     return model
 
-# Ruta del archivo NetCDF en S3
-file_key = 'path_to_your_file.nc'
+# Ruta del archivo ZIP en S3
+zip_file_key = ZIP_FILE_KEY
 
-# Cargar y procesar datos
-df = load_data_from_s3(file_key)
-
-# Visualizar datos
-plot_data(df)
-
-# Entrenar y evaluar modelo
-model = train_model(df)
+# Descargar y extraer archivo ZIP
+extracted_files = download_and_extract_zip(zip_file_key)
+if extracted_files:
+    for file in extracted_files:
+        if file.endswith('.nc'):
+            # Cargar y procesar datos del archivo NetCDF
+            df = load_data_from_netcdf(file)
+            
+            # Visualizar datos
+            plot_data(df)
+            
+            # Entrenar y evaluar modelo
+            model = train_model(df)
+else:
+    print("No se encontraron archivos NetCDF en el archivo ZIP.")
