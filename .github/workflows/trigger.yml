@@ -19,6 +19,10 @@ jobs:
       run: |
         pip install --upgrade pip
         pip install setuptools xarray cdsapi matplotlib boto3 python-dotenv
+              
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
 
     - name: Copy .cdsapirc to home directory
       run: cp App/.cdsapirc ~/.cdsapirc
