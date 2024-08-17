@@ -1,16 +1,10 @@
-import os
 import boto3
-import zipfile
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-from netCDF4 import Dataset
-from sklearn.model_selection import train_test_split
-from sklearn.svm import SVR  # Cambiado a SVR
-from sklearn.metrics import mean_squared_error  # Cambiado a mean_squared_error
+import os
+import tempfile
 from dotenv import load_dotenv
+import cdsapi
 
-# Cargar variables de entorno (solo necesario si se ejecuta localmente con un archivo .env)
+# Load environment variables (only needed if running locally with a .env file)
 if not os.getenv("GITHUB_ACTIONS"):
     load_dotenv()
 
@@ -18,109 +12,77 @@ AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 AWS_REGION = "us-east-1"
 BUCKET_NAME = "geltonas.tech"
-ZIP_FILE_KEY = "CO2.zip"
 
-# Descargar y descomprimir archivo desde S3
-def download_and_extract_zip(file_key, extract_to='/tmp'):
-    s3_client = boto3.client(
-        's3',
-        aws_access_key_id=AWS_ACCESS_KEY_ID,
-        aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
-        region_name=AWS_REGION
-    )
-    
-    # Descargar el archivo ZIP
-    response = s3_client.get_object(Bucket=BUCKET_NAME, Key=file_key)
-    zip_file_path = os.path.join(extract_to, 'temp_file.zip')
-    
-    with open(zip_file_path, 'wb') as zip_file:
-        zip_file.write(response['Body'].read())
-    
-    # Descomprimir el archivo ZIP
-    with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
-        zip_ref.extractall(extract_to)
-    
-    # Listar archivos descomprimidos
-    extracted_files = os.listdir(extract_to)
-    return [os.path.join(extract_to, file) for file in extracted_files if file.endswith('.nc')]
+# Ensure AWS credentials and region are correctly set
+if not AWS_ACCESS_KEY_ID or not AWS_SECRET_ACCESS_KEY or not AWS_REGION:
+    raise ValueError("AWS credentials or region are not set properly.")
 
-# Imprimir información sobre las variables del archivo NetCDF
-def print_netcdf_info(file_path):
-    with Dataset(file_path, 'r') as nc_file:
-        print("Variables disponibles en el archivo NetCDF:")
-        for var_name in nc_file.variables:
-            print(f"Variable: {var_name}")
+client = cdsapi.Client()
 
-# Cargar datos desde un archivo NetCDF
-def load_data_from_netcdf(file_path):
-    with Dataset(file_path, 'r') as nc_file:
-        # Imprimir variables disponibles para depuración
-        print_netcdf_info(file_path)
-        
-        # Acceder a las variables
-        time = nc_file.variables['time'][:]
-        co2 = nc_file.variables['co2'][:]  # Cambiado a 'co2'
-        lat = nc_file.variables['latitude'][:]
-        lon = nc_file.variables['longitude'][:]
-        
-        # Crear un DataFrame
-        df = pd.DataFrame({
-            'time': time,
-            'co2': co2,  # Cambiado a 'co2'
-            'latitude': lat,
-            'longitude': lon
-        })
-        
-    return df
+# Define years to process
+years = [
+    '2002', '2003', '2004', '2005', '2006', '2007', '2008', '2009', 
+    '2010', '2011', '2012', '2013', '2014', '2015', '2016', '2017', 
+    '2018', '2019', '2020', '2021', '2022'
+]
 
-# Visualizar los datos
-def plot_data(df):
-    plt.figure(figsize=(12, 6))
-    plt.scatter(df['longitude'], df['latitude'], c=df['co2'], cmap='viridis', s=10)
-    plt.colorbar(label='CO2 (ppm)')
-    plt.xlabel('Longitude')
-    plt.ylabel('Latitude')
-    plt.title('CO2 Concentration by Location')
-    plt.show()
+# Define the variables to retrieve
+variables = {
+    'mid_tropospheric_columns_of_atmospheric_carbon_dioxide': 'MidTropospheric_CO2',
+    'column_average_dry_air_mole_fraction_of_atmospheric_carbon_dioxide': 'XCO2'
+}
 
-# Entrenar un modelo SVR
-def train_model(df):
-    # Seleccionar características y objetivo
-    X = df[['latitude', 'longitude']]
-    y = df['co2']  # Cambiado a 'co2'
-    
-    # Dividir los datos en conjunto de entrenamiento y prueba
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-    
-    # Crear y entrenar el modelo
-    model = SVR(kernel='linear')  # Cambiado a SVR
-    model.fit(X_train, y_train)
-    
-    # Hacer predicciones
-    y_pred = model.predict(X_test)
-    
-    # Evaluar el modelo
-    mse = mean_squared_error(y_test, y_pred)  # Cambiado a mean_squared_error
-    
-    print(f"Mean Squared Error: {mse:.2f}")
-    
-    return model
+sensor_and_algorithm_list = ['airs_nlis', 'iasi_metop_a_nlis', 
+                'iasi_metop_b_nlis', 'iasi_metop_c_nlis', 
+                'sciamachy_wfmd', 'sciamachy_besd', 
+                'tanso_fts_ocfp', 'tanso_fts_srmp', 
+                'tanso2_fts_srmp','merged_emma', 
+                'merged_obs4mips'
+            ]
+# Process each variable and year in batches
+for var, var_name in variables.items():
+    for year in years:
+        request = {
+            'processing_level': ['level_2', 'level_3'],
+            'variable': [var],
+            'sensor_and_algorithm': sensor_and_algorithm_list,
+            'year': [year],
+            'version': ['latest'],
+            'data_format': 'zip'
+        }
 
-# Ruta del archivo ZIP en S3
-zip_file_key = ZIP_FILE_KEY
+        # Temporary File method
+        try:
+            with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+                temp_file_path = temp_file.name
+                print(f"Retrieving data for {var_name} in {year}...")
 
-# Descargar y extraer archivo ZIP
-extracted_files = download_and_extract_zip(zip_file_key)
-if extracted_files:
-    for file in extracted_files:
-        if file.endswith('.nc'):
-            # Cargar y procesar datos del archivo NetCDF
-            df = load_data_from_netcdf(file)
-            
-            # Visualizar datos
-            plot_data(df)
-            
-            # Entrenar y evaluar modelo
-            model = train_model(df)
-else:
-    print("No se encontraron archivos NetCDF en el archivo ZIP.")
+                # Retrieve data and save it to the temporary file
+                response = client.retrieve("satellite-carbon-dioxide", request)
+                response.download(temp_file_path)
+                
+                # Check if file is empty
+                if os.path.getsize(temp_file_path) > 0:
+                    # Upload the temporary file to S3
+                    s3_client = boto3.client(
+                        's3',
+                        aws_access_key_id=AWS_ACCESS_KEY_ID,
+                        aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+                        region_name=AWS_REGION
+                    )
+
+                    s3_key = f"{year}/{var_name}.zip"
+                    s3_client.upload_file(temp_file_path, BUCKET_NAME, s3_key)
+                    print(f"File uploaded to S3 bucket {BUCKET_NAME} with key {s3_key}")
+                else:
+                    print(f"No data retrieved for {var_name} in {year}. No folder created.")
+
+        except Exception as e:
+            print(f"Error processing {var_name} for {year}: {e}")
+
+        finally:
+            # Clean up the temporary file
+            try:
+                os.remove(temp_file_path)
+            except:
+                pass
