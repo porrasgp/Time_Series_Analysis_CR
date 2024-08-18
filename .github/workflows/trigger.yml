@@ -24,7 +24,7 @@ jobs:
     - name: Copy .cdsapirc to home directory
       run: cp App/.cdsapirc ~/.cdsapirc
 
-    - name: retrieve_data.py to S3
+    - name: S3ConnectionML.py
       working-directory: App
       run: python S3ConnectionML.py
       env:
