@@ -3,8 +3,8 @@ import os
 import tempfile
 import time
 import zipfile
-import pandas as pd
 import numpy as np
+import pandas as pd
 from netCDF4 import Dataset
 from dotenv import load_dotenv
 import cdsapi
@@ -91,43 +91,58 @@ def read_netcdf_with_chunks(file_path, variable_name, chunk_size=1000):
     else:
         return np.array([])  # Retornar un array vacío si no se encuentra la variable
 
-# Variables y años
-variables = {
-    "Crop Development Stage (DVS)": "crop_development_stage",
-    "Total Above Ground Production (TAGP)": "total_above_ground_production",
-    "Total Weight Storage Organs (TWSO)": "total_weight_storage_organs"
-}
-years = ["2019", "2020", "2021", "2022", "2023"]
-
-# Descargar y extraer archivos
-for var in variables.values():
-    for year in years:
+def process_files_for_year(year, variables):
+    """Descargar, extraer y procesar archivos NetCDF para un año específico."""
+    for var in variables:
         s3_prefix = f'crop_productivity_indicators/{year}/{var}_year_{year}.zip'
         download_and_extract_zip_from_s3(s3_prefix)
 
-# Verificar los archivos extraídos
-print("Archivos extraídos en /tmp:")
-print(os.listdir('/tmp'))
+def main():
+    variables = [
+        'crop_development_stage',
+        'total_above_ground_production',
+        'total_weight_storage_organs'
+    ]
+    years = ["2019", "2020", "2021", "2022", "2023"]
 
-# Procesar los datos y cargar en un DataFrame
-all_data = pd.DataFrame()
-
-for var_name, var_key in variables.items():
+    # Procesar en lotes por año
     for year in years:
-        file_name = f"{var_key}_year_{year}.nc"
-        file_path = f"/tmp/{file_name}"
-        if os.path.isfile(file_path):
-            var_data = read_netcdf_with_chunks(file_path, var_name)
-            if var_data.size > 0:
-                all_data[var_name] = var_data
-            else:
-                print(f"No se encontraron datos para '{var_name}' en {file_path}")
-        else:
-            print(f"Archivo {file_name} no encontrado en {file_path}")
+        process_files_for_year(year, variables)
 
-# Verificar si los datos se han cargado correctamente
-if all_data.empty:
-    print("No se han cargado datos en el DataFrame.")
-else:
-    print(all_data.head())
-    print(all_data.describe())
+    # Verificar los archivos extraídos
+    extracted_files = os.listdir('/tmp')
+    print("Archivos extraídos en /tmp:")
+    print(extracted_files)
+
+    # Procesar los datos y cargar en un DataFrame
+    all_data = pd.DataFrame()
+
+    for var in variables:
+        for year in years:
+            file_name = f"Maize_{var}_C3S-glob-agric_{year}_1_{year}-*.nc"
+            file_path = os.path.join('/tmp', file_name)
+            
+            matching_files = [f for f in os.listdir('/tmp') if f.startswith(file_name.split('*')[0]) and f.endswith('.nc')]
+            if matching_files:
+                for file in matching_files:
+                    full_path = os.path.join('/tmp', file)
+                    var_data = read_netcdf_with_chunks(full_path, var)
+                    if var_data.size > 0:
+                        if var not in all_data:
+                            all_data[var] = var_data
+                        else:
+                            all_data[var] = np.concatenate([all_data[var], var_data])
+                    else:
+                        print(f"No se encontraron datos para '{var}' en {full_path}")
+            else:
+                print(f"Archivo {file_name} no encontrado en /tmp")
+
+    # Verificar si los datos se han cargado correctamente
+    if all_data.empty:
+        print("No se han cargado datos en el DataFrame.")
+    else:
+        print(all_data.head())
+        print(all_data.describe())
+
+if __name__ == "__main__":
+    main()
