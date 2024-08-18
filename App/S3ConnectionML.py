@@ -7,7 +7,7 @@ import xarray as xr
 from dotenv import load_dotenv
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-#Cargar variables de entorno
+# Cargar variables de entorno
 load_dotenv()
 
 AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
@@ -36,7 +36,7 @@ def download_and_process_zip(s3_key):
                 if file_name.endswith('.nc'):
                     with zip_ref.open(file_name) as file:
                         try:
-                            # Leer archivo NetCDF en memoria usando xarray
+                            # Leer archivo NetCDF en memoria usando xarray con engine='netcdf4'
                             ds = xr.open_dataset(io.BytesIO(file.read()), engine='netcdf4')
                             for variable_name in ds.data_vars:
                                 data = ds[variable_name].to_dataframe().reset_index()
