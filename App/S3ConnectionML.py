@@ -7,7 +7,7 @@ import xarray as xr
 from dotenv import load_dotenv
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# Cargar variables de entorno
+#Cargar variables de entorno
 load_dotenv()
 
 AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
