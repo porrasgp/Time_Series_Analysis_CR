@@ -1,11 +1,9 @@
-import os
-import boto3
+import io
 import zipfile
-import tempfile
+import boto3
 import pandas as pd
 import xarray as xr
 from dotenv import load_dotenv
-import concurrent.futures
 
 # Cargar variables de entorno
 load_dotenv()
@@ -23,55 +21,29 @@ s3_client = boto3.client(
     region_name=AWS_REGION
 )
 
-# Función para descargar y extraer archivos ZIP desde S3
-def download_and_extract_from_s3(s3_prefix, extract_to='/tmp'):
+# Función para descargar y procesar archivos ZIP desde S3 en memoria
+def download_and_process_zip(s3_key):
     try:
-        objects = s3_client.list_objects_v2(Bucket=BUCKET_NAME, Prefix=s3_prefix)
-        if 'Contents' in objects:
-            for obj in objects['Contents']:
-                s3_key = obj['Key']
-                if s3_key.endswith('.zip'):
-                    with tempfile.NamedTemporaryFile(delete=False) as temp_file:
-                        s3_client.download_fileobj(BUCKET_NAME, s3_key, temp_file)
-                        temp_file_path = temp_file.name
-                    
-                    # Extraer el archivo ZIP
-                    with zipfile.ZipFile(temp_file_path, 'r') as zip_ref:
-                        zip_ref.extractall(extract_to)
-                    
-                    print(f"Archivo {s3_key} descargado y extraído en {extract_to}")
-    except Exception as e:
-        print(f"Error al descargar o extraer archivo: {e}")
+        # Descargar archivo ZIP a memoria
+        obj = s3_client.get_object(Bucket=BUCKET_NAME, Key=s3_key)
+        zip_file = io.BytesIO(obj['Body'].read())
 
-# Función para procesar un archivo NetCDF con xarray
-def process_netcdf_file(file_path):
-    try:
-        ds = xr.open_dataset(file_path, engine='netcdf4')
-        data_list = []
-        for variable_name in ds.data_vars:
-            data = ds[variable_name].to_dataframe().reset_index()
-            data['Variable'] = variable_name
-            data_list.append(data)
-        combined_df = pd.concat(data_list, ignore_index=True)
-        return combined_df
+        with zipfile.ZipFile(zip_file, 'r') as zip_ref:
+            for file_name in zip_ref.namelist():
+                with zip_ref.open(file_name) as file:
+                    # Procesar archivo NetCDF directamente
+                    if file_name.endswith('.nc'):
+                        ds = xr.open_dataset(file, engine='netcdf4')
+                        data_list = []
+                        for variable_name in ds.data_vars:
+                            data = ds[variable_name].to_dataframe().reset_index()
+                            data['Variable'] = variable_name
+                            data_list.append(data)
+                        combined_df = pd.concat(data_list, ignore_index=True)
+                        return combined_df
     except Exception as e:
-        print(f"Error al procesar {file_path}: {e}")
+        print(f"Error al descargar o procesar archivo: {e}")
         return pd.DataFrame()
-
-# Función para procesar archivos NetCDF por año y mes
-def process_netcdf_from_s3(data_dir='/tmp', years=["2019", "2020", "2021", "2022", "2023"]):
-    all_data_df = pd.DataFrame()
-    for year in years:
-        year_dir = os.path.join(data_dir, year)
-        if not os.path.exists(year_dir):
-            os.makedirs(year_dir)
-        files = [f for f in os.listdir(year_dir) if f.endswith('.nc')]
-        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-            futures = [executor.submit(process_netcdf_file, os.path.join(year_dir, file_name)) for file_name in files]
-            for future in concurrent.futures.as_completed(futures):
-                result_df = future.result()
-                all_data_df = pd.concat([all_data_df, result_df], ignore_index=True)
-    return all_data_df
 
 # Variables y años
 variables = {
@@ -81,17 +53,16 @@ variables = {
 }
 years = ["2019", "2020", "2021", "2022", "2023"]
 
-# Descargar y extraer archivos desde S3
+# Procesar archivos desde S3
+all_data_df = pd.DataFrame()
 for var in variables.values():
     for year in years:
         s3_prefix = f'crop_productivity_indicators/{year}/{var}_year_{year}.zip'
-        download_and_extract_from_s3(s3_prefix, extract_to=os.path.join('/tmp', year))
-
-# Procesar los archivos NetCDF y organizar los datos
-data_df = process_netcdf_from_s3(data_dir='/tmp')
+        df = download_and_process_zip(s3_prefix)
+        all_data_df = pd.concat([all_data_df, df], ignore_index=True)
 
 # Mostrar la descripción estadística de los datos
-print(data_df.describe())
+print(all_data_df.describe())
 
 # Imprimir una vista previa de los datos
-print(data_df.head())
+print(all_data_df.head())
