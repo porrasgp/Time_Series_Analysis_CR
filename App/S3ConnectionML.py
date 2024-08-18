@@ -2,9 +2,8 @@ import os
 import boto3
 import zipfile
 import tempfile
-import pandas as pd
+import xarray as xr
 import numpy as np
-from netCDF4 import Dataset
 from dotenv import load_dotenv
 
 # Cargar variables de entorno
@@ -22,26 +21,6 @@ s3_client = boto3.client(
     aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
     region_name=AWS_REGION
 )
-
-class DataFrameBuilder:
-    def __init__(self):
-        self.data_list = []
-
-    def add_data(self, year, variable_name, lat, lon, time, values):
-        df = pd.DataFrame({
-            'Year': year,
-            'Variable': variable_name,
-            'Latitude': lat,
-            'Longitude': lon,
-            'Time': time,
-            'Values': values
-        })
-        self.data_list.append(df)
-    
-    def build(self):
-        if not self.data_list:
-            return pd.DataFrame()  # Return empty DataFrame if no data
-        return pd.concat(self.data_list, ignore_index=True)
 
 def download_and_extract_from_s3(s3_prefix, extract_to='/tmp'):
     objects = s3_client.list_objects_v2(Bucket=BUCKET_NAME, Prefix=s3_prefix)
@@ -62,67 +41,35 @@ def download_and_extract_from_s3(s3_prefix, extract_to='/tmp'):
     else:
         print(f"No se encontraron objetos en {s3_prefix}")
 
-def list_netcdf_variables(file_path):
-    with Dataset(file_path, 'r') as nc:
-        variables = list(nc.variables.keys())
-        print(f"Variables en {file_path}: {variables}")
-    return variables
-
-def read_netcdf_with_chunks(file_path, variable_names, chunk_size=1000):
-    data = []
-    latitudes = []
-    longitudes = []
-    times = []
+def process_netcdf_files(data_dir='/tmp'):
+    datasets = []
     
-    with Dataset(file_path, 'r') as nc:
-        for variable_name in variable_names:
-            if variable_name in nc.variables:
-                var_data = nc.variables[variable_name]
-                for i in range(0, var_data.shape[0], chunk_size):
-                    chunk = var_data[i:i+chunk_size].flatten()
-                    data.append(chunk)
-                
-                # Assuming lat, lon, and time are in the same dimension as var_data
-                if 'lat' in nc.variables:
-                    latitudes.append(nc.variables['lat'][:].flatten())
-                if 'lon' in nc.variables:
-                    longitudes.append(nc.variables['lon'][:].flatten())
-                if 'time' in nc.variables:
-                    times.append(nc.variables['time'][:].flatten())
-            else:
-                print(f"Advertencia: '{variable_name}' no encontrado en {file_path}")
-    
-    # Concatenate the lists to form arrays
-    return {
-        'lat': np.concatenate(latitudes) if latitudes else np.array([]),
-        'lon': np.concatenate(longitudes) if longitudes else np.array([]),
-        'time': np.concatenate(times) if times else np.array([]),
-        'values': np.concatenate(data) if data else np.array([])
-    }
-
-def process_netcdf_files(data_dir='/tmp', builder=None):
     files = [f for f in os.listdir(data_dir) if f.endswith('.nc')]
     
     for file_name in files:
         file_path = os.path.join(data_dir, file_name)
         print(f"Procesando {file_name}...")
-        file_variables = list_netcdf_variables(file_path)
         
-        # Extract lat, lon, time, and values
-        data = read_netcdf_with_chunks(file_path, file_variables)
-        if len(data['values']) > 0:
-            year = file_name.split('_')[2]
-            builder.add_data(year, file_variables[0], data['lat'], data['lon'], data['time'], data['values'])
+        # Leer el archivo NetCDF usando xarray
+        ds = xr.open_dataset(file_path)
+        datasets.append(ds)
+        
+    return datasets
 
-def upload_to_s3(df, s3_prefix):
-    # Save the DataFrame to a CSV file
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as temp_file:
-        df.to_csv(temp_file.name, index=False)
+def merge_datasets(datasets):
+    # Concatenar todos los datasets en un solo dataset
+    combined_ds = xr.concat(datasets, dim='time')
+    return combined_ds
+
+def upload_to_s3(ds, s3_prefix):
+    # Guardar el dataset combinado en un archivo NetCDF temporal
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.nc') as temp_file:
+        ds.to_netcdf(temp_file.name)
         temp_file_path = temp_file.name
     
-    # Upload the CSV file to S3
+    # Subir el archivo NetCDF a S3
     s3_client.upload_file(temp_file_path, BUCKET_NAME, s3_prefix)
-    print(f"Archivo CSV subido a S3 en {s3_prefix}")
+    print(f"Archivo NetCDF subido a S3 en {s3_prefix}")
 
 def process_year_folder(year):
     variables = [
@@ -135,21 +82,18 @@ def process_year_folder(year):
         s3_prefix = f'crop_productivity_indicators/{year}/{var}_year_{year}.zip'
         download_and_extract_from_s3(s3_prefix)
         
-        # Create a builder instance
-        builder = DataFrameBuilder()
+        # Procesar los archivos NetCDF
+        datasets = process_netcdf_files(data_dir='/tmp')
         
-        # Process NetCDF files
-        process_netcdf_files(data_dir='/tmp', builder=builder)
+        # Combinar los datasets
+        combined_ds = merge_datasets(datasets)
         
-        # Build the DataFrame
-        data_df = builder.build()
+        # Subir el dataset combinado a S3
+        if combined_ds:
+            s3_upload_prefix = f'processed_data/{year}/{var}_processed.nc'
+            upload_to_s3(combined_ds, s3_upload_prefix)
         
-        # Upload the DataFrame to S3
-        if not data_df.empty:
-            s3_upload_prefix = f'processed_data/{year}/{var}_processed.csv'
-            upload_to_s3(data_df, s3_upload_prefix)
-        
-        # Clean up temporary files
+        # Limpiar archivos temporales
         for file in os.listdir('/tmp'):
             file_path = os.path.join('/tmp', file)
             if os.path.isfile(file_path):
