@@ -4,7 +4,7 @@ import zipfile
 import tempfile
 import pandas as pd
 import numpy as np
-from netCDF4 import Dataset
+import xarray as xr
 from dotenv import load_dotenv
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -48,49 +48,20 @@ def download_and_extract_from_s3(s3_prefix, extract_to='/tmp'):
     except Exception as e:
         print(f"Error al descargar o extraer archivo: {e}")
 
-# Función para listar variables disponibles en un archivo NetCDF
-def list_netcdf_variables(file_path):
-    try:
-        with Dataset(file_path, 'r') as nc:
-            variables = list(nc.variables.keys())
-            print(f"Variables en {file_path}: {variables}")
-        return variables
-    except Exception as e:
-        print(f"Error al listar variables en {file_path}: {e}")
-        return []
-
-# Función para leer archivos NetCDF y cargar datos específicos por chunks
-def read_netcdf_with_chunks(file_path, variable_name, chunk_size=200):
-    try:
-        data = []
-        with Dataset(file_path, 'r') as nc:
-            if variable_name in nc.variables:
-                var_data = nc.variables[variable_name]
-                for i in range(0, var_data.shape[0], chunk_size):
-                    chunk = var_data[i:i+chunk_size].flatten()
-                    data.append(chunk)
-            else:
-                print(f"Advertencia: '{variable_name}' no encontrado en {file_path}")
-        return np.concatenate(data) if data else np.array([])  # Retorna un array vacío si no se encuentra la variable
-    except Exception as e:
-        print(f"Error al leer datos de {file_path}: {e}")
-        return np.array([])
-
 # Función para procesar un archivo NetCDF y actualizar el DataFrame
 def process_netcdf_file(file_path):
     try:
         data_list = []
-        file_variables = list_netcdf_variables(file_path)
-        for variable_name in file_variables:
-            data = read_netcdf_with_chunks(file_path, variable_name)
-            if len(data) > 0:
-                year = file_path.split('_')[2]
-                df = pd.DataFrame({
-                    'Year': year,
-                    'Variable': variable_name,
-                    'Data': data
-                })
-                data_list.append(df)
+        ds = xr.open_dataset(file_path)
+        for variable_name in ds.data_vars:
+            data = ds[variable_name].values.flatten()
+            year = file_path.split('_')[2]
+            df = pd.DataFrame({
+                'Year': year,
+                'Variable': variable_name,
+                'Data': list(data)  # Convertir el array a una lista para ser compatible con DataFrame
+            })
+            data_list.append(df)
         return pd.concat(data_list, ignore_index=True) if data_list else pd.DataFrame()
     except Exception as e:
         print(f"Error al procesar {file_path}: {e}")
