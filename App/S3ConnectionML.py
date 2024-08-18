@@ -4,6 +4,8 @@ import zipfile
 import tempfile
 import xarray as xr
 import numpy as np
+import dask
+from dask.distributed import Client
 from dotenv import load_dotenv
 
 # Cargar variables de entorno
@@ -21,6 +23,9 @@ s3_client = boto3.client(
     aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
     region_name=AWS_REGION
 )
+
+# Configurar el cliente dask si estás utilizando el entorno de Dask
+client = Client()
 
 def download_and_extract_from_s3(s3_prefix, extract_to='/tmp'):
     objects = s3_client.list_objects_v2(Bucket=BUCKET_NAME, Prefix=s3_prefix)
@@ -45,7 +50,7 @@ def process_netcdf_files(data_dir='/tmp'):
     files = [os.path.join(data_dir, f) for f in os.listdir(data_dir) if f.endswith('.nc')]
     print(f"Procesando archivos: {files}...")
     
-    # Leer múltiples archivos NetCDF usando xarray
+    # Leer múltiples archivos NetCDF con chunks
     ds = xr.open_mfdataset(files, combine='by_coords', chunks={'time': 10})
     return ds
 
