@@ -11,6 +11,7 @@ from sklearn.metrics import mean_squared_error, r2_score
 import matplotlib.pyplot as plt
 import seaborn as sns
 from dotenv import load_dotenv
+import botocore.exceptions
 
 # Cargar variables de entorno
 load_dotenv()
@@ -19,6 +20,18 @@ AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 AWS_REGION = "us-east-1"
 BUCKET_NAME = "maize-climate-data-store"
+
+# Función para verificar si una clave S3 existe
+def check_if_key_exists(s3_client, bucket_name, s3_key):
+    try:
+        s3_client.head_object(Bucket=bucket_name, Key=s3_key)
+        return True
+    except botocore.exceptions.ClientError as e:
+        if e.response['Error']['Code'] == "404":
+            print(f"El objeto {s3_key} no existe en el bucket {bucket_name}.")
+            return False
+        else:
+            raise
 
 # Función para descargar y extraer archivos desde S3
 def download_and_extract_zip_from_s3(s3_key, extract_to='/tmp'):
@@ -59,9 +72,9 @@ def read_netcdf_with_chunks(file_path, variable_name, chunk_size=1000):
 
 # Variables y años a procesar
 variables = {
-    "Crop Development Stage (DVS)": "crop_development_stage.zip",
-    "Total Above Ground Production (TAGP)": "total_above_ground_production.zip",
-    "Total Weight Storage Organs (TWSO)": "total_weight_storage_organs.zip"
+    "Crop Development Stage (DVS)": "crop_development_stage",
+    "Total Above Ground Production (TAGP)": "total_above_ground_production",
+    "Total Weight Storage Organs (TWSO)": "total_weight_storage_organs"
 }
 
 years = ['2019', '2020', '2021', '2022', '2023']
@@ -70,14 +83,15 @@ years = ['2019', '2020', '2021', '2022', '2023']
 all_data = pd.DataFrame()
 
 for year in years:
-    for var_name, zip_name in variables.items():
-        s3_key = f'crop_productivity_indicators/{year}/{zip_name}'
-        extracted_files = download_and_extract_zip_from_s3(s3_key)
-        
-        for file_path in extracted_files:
-            var_data = read_netcdf_with_chunks(file_path, var_name)
-            if var_data.size > 0:
-                all_data[var_name] = var_data if var_name not in all_data else np.concatenate((all_data[var_name], var_data))
+    for var_name, base_name in variables.items():
+        s3_key = f'crop_productivity_indicators/{year}/{base_name}_year_{year}.zip'
+        if check_if_key_exists(boto3.client('s3', aws_access_key_id=AWS_ACCESS_KEY_ID, aws_secret_access_key=AWS_SECRET_ACCESS_KEY, region_name=AWS_REGION), BUCKET_NAME, s3_key):
+            extracted_files = download_and_extract_zip_from_s3(s3_key)
+            
+            for file_path in extracted_files:
+                var_data = read_netcdf_with_chunks(file_path, var_name)
+                if var_data.size > 0:
+                    all_data[var_name] = var_data if var_name not in all_data else np.concatenate((all_data[var_name], var_data))
 
 # Verificar si los datos se han cargado correctamente
 print(all_data.head())
@@ -108,4 +122,4 @@ plt.xlabel("Crop Development Stage (DVS)")
 plt.ylabel("Predicciones")
 plt.title("Predicciones vs. Valores Reales")
 plt.legend()
-    
+plt.show()
