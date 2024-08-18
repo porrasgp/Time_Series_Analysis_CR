@@ -111,8 +111,6 @@ for var in variables.values():
 # Procesar los archivos NetCDF y organizar los datos
 data_df = process_netcdf_from_s3()
 
-# Mostrar la descripción estadística de los datos
-print(data_df.describe())
 
-# Imprimir una vista previa de los datos
-print(data_df.head())
+# Mostrar la descripción estadística de los datos
+print(data_df)
