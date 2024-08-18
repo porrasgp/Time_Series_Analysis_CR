@@ -48,12 +48,9 @@ def process_netcdf_files(data_dir='/tmp'):
     # Leer múltiples archivos NetCDF usando xarray
     ds = xr.open_mfdataset(files, combine='by_coords', chunks={'time': 10})
     
-    # Convertir la coordenada de tiempo a datetime64[ns]
-    if 'time' in ds.coords:
-        time_float = ds.coords['time']
-        new_time = xr.coding.times.decode_cf_datetime(time_float, units='days since 1970-01-01')
-        ds = ds.assign_coords(time=new_time)
-        print("La coordenada de tiempo se ha convertido a datetime64[ns].")
+    # Decodificar todas las variables de tiempo automáticamente
+    ds = xr.decode_cf(ds)
+    print("La coordenada de tiempo se ha convertido a datetime64[ns].")
     
     return ds
 
