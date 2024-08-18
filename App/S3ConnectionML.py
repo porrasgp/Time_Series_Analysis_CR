@@ -54,44 +54,57 @@ def list_netcdf_variables(file_path):
 def read_netcdf_with_chunks(file_path, variable_name, chunk_size=1000):
     data = []
     
-    with Dataset(file_path, 'r') as nc:
-        if variable_name in nc.variables:
-            var_data = nc.variables[variable_name]
-            for i in range(0, var_data.shape[0], chunk_size):
-                chunk = var_data[i:i+chunk_size].flatten()
-                data.append(chunk)
-        else:
-            print(f"Advertencia: '{variable_name}' no encontrado en {file_path}")
+    try:
+        with Dataset(file_path, 'r') as nc:
+            if variable_name in nc.variables:
+                var_data = nc.variables[variable_name]
+                print(f"Forma de datos de '{variable_name}': {var_data.shape}")
+                
+                # Leer datos en chunks
+                for i in range(0, var_data.shape[0], chunk_size):
+                    chunk = var_data[i:i+chunk_size]
+                    if chunk.ndim > 1:
+                        chunk = chunk.reshape(-1)
+                    data.append(chunk)
+            else:
+                print(f"Advertencia: '{variable_name}' no encontrado en {file_path}")
+    except Exception as e:
+        print(f"Error al procesar datos en '{file_path}': {e}")
     
     if len(data) > 0:
         return np.concatenate(data)
     else:
         return np.array([])  # Retorna un array vacío si no se encuentra la variable
 
-# Función para procesar archivos NetCDF y actualizar el DataFrame
+# Función para procesar archivos NetCDF desde S3 y agregar datos al DataFrame
 def process_netcdf_from_s3(data_dir='/tmp'):
     data_list = []
     
-    files = [f for f in os.listdir(data_dir) if f.endswith('.nc')]
-    
-    for file_name in files:
-        file_path = os.path.join(data_dir, file_name)
-        print(f"Procesando {file_name}...")
-        file_variables = list_netcdf_variables(file_path)
-        
-        for variable_name in file_variables:
-            data = read_netcdf_with_chunks(file_path, variable_name)
-            if len(data) > 0:
-                year = file_name.split('_')[2]
-                df = pd.DataFrame({
-                    'Year': year,
-                    'Variable': variable_name,
-                    'Data': data
-                })
-                data_list.append(df)
+    for year in years:
+        year_dir = os.path.join(data_dir, year)
+        if os.path.exists(year_dir):
+            files = [f for f in os.listdir(year_dir) if f.endswith('.nc')]
+            for file_name in files:
+                file_path = os.path.join(year_dir, file_name)
+                print(f"Procesando {file_name}...")
+                file_variables = list_netcdf_variables(file_path)
                 
+                for variable_name in file_variables:
+                    data = read_netcdf_with_chunks(file_path, variable_name)
+                    if len(data) > 0:
+                        df = pd.DataFrame({
+                            'Year': year,
+                            'Variable': variable_name,
+                            'Data': data
+                        })
+                        data_list.append(df)
+    
     # Combinar todos los DataFrames en uno solo
-    combined_df = pd.concat(data_list, ignore_index=True)
+    if data_list:
+        combined_df = pd.concat(data_list, ignore_index=True)
+    else:
+        combined_df = pd.DataFrame(columns=['Year', 'Variable', 'Data'])
+        
     return combined_df
 
 # Variables y años
@@ -111,6 +124,8 @@ for var in variables.values():
 # Procesar los archivos NetCDF y organizar los datos
 data_df = process_netcdf_from_s3()
 
-
 # Mostrar la descripción estadística de los datos
-print(data_df)
+print(data_df.describe())
+
+# Imprimir una vista previa de los datos
+print(data_df.head())
