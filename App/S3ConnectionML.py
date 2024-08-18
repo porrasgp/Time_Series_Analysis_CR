@@ -45,8 +45,8 @@ def process_netcdf_files(data_dir='/tmp'):
     files = [os.path.join(data_dir, f) for f in os.listdir(data_dir) if f.endswith('.nc')]
     print(f"Procesando archivos: {files}...")
     
-    # Leer múltiples archivos NetCDF usando xarray
-    ds = xr.open_mfdataset(files, combine='by_coords', chunks={'time': 10})
+    # Leer múltiples archivos NetCDF usando xarray sin dask
+    ds = xr.open_mfdataset(files, combine='by_coords', decode_times=True)
     
     # Decodificar todas las variables de tiempo automáticamente
     ds = xr.decode_cf(ds)
