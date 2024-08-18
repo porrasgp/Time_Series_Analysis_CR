@@ -3,11 +3,9 @@ import boto3
 import zipfile
 import tempfile
 import pandas as pd
-import numpy as np
 import xarray as xr
 from dotenv import load_dotenv
-import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import concurrent.futures
 
 # Cargar variables de entorno
 load_dotenv()
@@ -42,45 +40,38 @@ def download_and_extract_from_s3(s3_prefix, extract_to='/tmp'):
                         zip_ref.extractall(extract_to)
                     
                     print(f"Archivo {s3_key} descargado y extraído en {extract_to}")
-                    time.sleep(2)  # Agregar tiempo de espera
-        else:
-            print(f"No se encontraron objetos en {s3_prefix}")
     except Exception as e:
         print(f"Error al descargar o extraer archivo: {e}")
 
-# Función para procesar un archivo NetCDF y actualizar el DataFrame
+# Función para procesar un archivo NetCDF con xarray
 def process_netcdf_file(file_path):
     try:
+        ds = xr.open_dataset(file_path, engine='netcdf4')
         data_list = []
-        ds = xr.open_dataset(file_path)
         for variable_name in ds.data_vars:
-            data = ds[variable_name].values.flatten()
-            year = file_path.split('_')[2]
-            df = pd.DataFrame({
-                'Year': year,
-                'Variable': variable_name,
-                'Data': list(data)  # Convertir el array a una lista para ser compatible con DataFrame
-            })
-            data_list.append(df)
-        return pd.concat(data_list, ignore_index=True) if data_list else pd.DataFrame()
+            data = ds[variable_name].to_dataframe().reset_index()
+            data['Variable'] = variable_name
+            data_list.append(data)
+        combined_df = pd.concat(data_list, ignore_index=True)
+        return combined_df
     except Exception as e:
         print(f"Error al procesar {file_path}: {e}")
         return pd.DataFrame()
 
-# Función para procesar todos los archivos NetCDF desde S3
-def process_netcdf_from_s3(data_dir='/tmp'):
-    try:
-        files = [f for f in os.listdir(data_dir) if f.endswith('.nc')]
-        data_df = pd.DataFrame()
-        with ThreadPoolExecutor(max_workers=4) as executor:
-            futures = [executor.submit(process_netcdf_file, os.path.join(data_dir, file_name)) for file_name in files]
-            for future in as_completed(futures):
+# Función para procesar archivos NetCDF por año y mes
+def process_netcdf_from_s3(data_dir='/tmp', years=["2019", "2020", "2021", "2022", "2023"]):
+    all_data_df = pd.DataFrame()
+    for year in years:
+        year_dir = os.path.join(data_dir, year)
+        if not os.path.exists(year_dir):
+            os.makedirs(year_dir)
+        files = [f for f in os.listdir(year_dir) if f.endswith('.nc')]
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+            futures = [executor.submit(process_netcdf_file, os.path.join(year_dir, file_name)) for file_name in files]
+            for future in concurrent.futures.as_completed(futures):
                 result_df = future.result()
-                data_df = pd.concat([data_df, result_df], ignore_index=True)
-        return data_df
-    except Exception as e:
-        print(f"Error al procesar archivos desde {data_dir}: {e}")
-        return pd.DataFrame()
+                all_data_df = pd.concat([all_data_df, result_df], ignore_index=True)
+    return all_data_df
 
 # Variables y años
 variables = {
@@ -94,10 +85,10 @@ years = ["2019", "2020", "2021", "2022", "2023"]
 for var in variables.values():
     for year in years:
         s3_prefix = f'crop_productivity_indicators/{year}/{var}_year_{year}.zip'
-        download_and_extract_from_s3(s3_prefix)
+        download_and_extract_from_s3(s3_prefix, extract_to=os.path.join('/tmp', year))
 
 # Procesar los archivos NetCDF y organizar los datos
-data_df = process_netcdf_from_s3()
+data_df = process_netcdf_from_s3(data_dir='/tmp')
 
 # Mostrar la descripción estadística de los datos
 print(data_df.describe())
