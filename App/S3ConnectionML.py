@@ -85,16 +85,17 @@ def process_files_for_year(year, variables):
         download_and_extract_zip_from_s3(s3_prefix)
 
 def main():
-    variables = [
-        'crop_development_stage',
-        'total_above_ground_production',
-        'total_weight_storage_organs'
-    ]
+    # Ajustar las variables con los nombres correspondientes
+    variables = {
+        'DVS': 'crop_development_stage',
+        'TAGP': 'total_above_ground_production',
+        'TWSO': 'total_weight_storage_organs'
+    }
     years = ["2023"]
 
     # Procesar en lotes por año
     for year in years:
-        process_files_for_year(year, variables)
+        process_files_for_year(year, variables.values())
 
     # Verificar los archivos extraídos
     extracted_files = os.listdir('/tmp')
@@ -102,10 +103,10 @@ def main():
     print(extracted_files)
 
     # Procesar y explorar los archivos NetCDF con xarray
-    for var in variables:
+    for short_var, long_var in variables.items():
         for year in years:
             # Buscar archivos NetCDF específicos en el directorio temporal usando los nombres extraídos
-            file_prefix = f"Maize_{var}_C3S-glob-agric_{year}_1_{year}-"
+            file_prefix = f"Maize_{short_var}_C3S-glob-agric_{year}_1_{year}-"
             matching_files = [f for f in extracted_files if f.startswith(file_prefix) and f.endswith('.nc')]
 
             if matching_files:
@@ -113,7 +114,7 @@ def main():
                     full_path = os.path.join('/tmp', file)
                     ds = read_netcdf_with_xarray(full_path)
                     if ds is not None:
-                        print(f"Datos del archivo {file}:")
+                        print(f"Datos del archivo {file} ({long_var}):")
                         print(ds)
                         print("\nVariables disponibles:")
                         for data_var in ds.data_vars:
@@ -123,9 +124,10 @@ def main():
                             print(f" - Valores no nulos: {np.count_nonzero(~np.isnan(ds[data_var].values))}")
                             print(f" - Datos de muestra:\n{ds[data_var].values.flatten()[:10]}")
                     else:
-                        print(f"No se pudieron cargar los datos para '{var}' en {full_path}")
+                        print(f"No se pudieron cargar los datos para '{long_var}' en {full_path}")
             else:
-                print(f"Archivo para '{var}' en el año {year} no encontrado en /tmp")
+                print(f"Archivo para '{long_var}' en el año {year} no encontrado en /tmp")
 
 if __name__ == "__main__":
     main()
+
