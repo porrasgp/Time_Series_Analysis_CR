@@ -5,6 +5,8 @@ import os
 import xarray as xr
 import numpy as np
 from dotenv import load_dotenv
+import h5netcdf
+import netCDF4
 
 # Cargar variables de entorno
 if not os.getenv("GITHUB_ACTIONS"):
