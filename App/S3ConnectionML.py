@@ -54,32 +54,29 @@ def list_netcdf_variables(file_path):
 def read_netcdf_with_chunks(file_path, variable_name, chunk_size=1000):
     data = []
     
-    with Dataset(file_path, 'r') as nc:
-        if variable_name in nc.variables:
-            var_data = nc.variables[variable_name]
-            for i in range(0, var_data.shape[0], chunk_size):
-                chunk = var_data[i:i+chunk_size].flatten()
-                data.append(chunk)
-        else:
-            print(f"Advertencia: '{variable_name}' no encontrado en {file_path}")
+    try:
+        with Dataset(file_path, 'r') as nc:
+            if variable_name in nc.variables:
+                var_data = nc.variables[variable_name]
+                print(f"Forma de datos de '{variable_name}': {var_data.shape}")
+                
+                # Leer datos en chunks
+                for i in range(0, var_data.shape[0], chunk_size):
+                    chunk = var_data[i:i+chunk_size]
+                    if chunk.ndim > 1:
+                        chunk = chunk.reshape(-1)
+                    data.append(chunk)
+            else:
+                print(f"Advertencia: '{variable_name}' no encontrado en {file_path}")
+    except Exception as e:
+        print(f"Error al procesar datos en '{file_path}': {e}")
     
     if len(data) > 0:
         return np.concatenate(data)
     else:
         return np.array([])  # Retorna un array vacío si no se encuentra la variable
 
-# Función para verificar el contenido de los archivos NetCDF
-def check_netcdf_content(file_path):
-    try:
-        with Dataset(file_path, 'r') as nc:
-            print(f"Archivo: {file_path}")
-            print("Variables disponibles:", list(nc.variables.keys()))
-            for var_name in nc.variables:
-                print(f"Variable: {var_name}, Forma: {nc.variables[var_name].shape}")
-    except Exception as e:
-        print(f"Error al verificar el contenido del archivo '{file_path}': {e}")
-
-# Función para procesar todos los archivos NetCDF desde S3
+# Función para procesar archivos NetCDF desde S3 y agregar datos al DataFrame
 def process_netcdf_from_s3(data_dir='/tmp'):
     data_list = []
     
@@ -90,10 +87,6 @@ def process_netcdf_from_s3(data_dir='/tmp'):
             for file_name in files:
                 file_path = os.path.join(year_dir, file_name)
                 print(f"Procesando {file_name}...")
-                
-                # Verificar el contenido del archivo antes de procesarlo
-                check_netcdf_content(file_path)
-                
                 file_variables = list_netcdf_variables(file_path)
                 
                 for variable_name in file_variables:
@@ -105,8 +98,6 @@ def process_netcdf_from_s3(data_dir='/tmp'):
                             'Data': data
                         })
                         data_list.append(df)
-                    else:
-                        print(f"No se encontraron datos para la variable '{variable_name}' en {file_path}")
     
     # Combinar todos los DataFrames en uno solo
     if data_list:
