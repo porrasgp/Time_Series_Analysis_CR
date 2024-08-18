@@ -5,11 +5,6 @@ import tempfile
 import pandas as pd
 import numpy as np
 from netCDF4 import Dataset
-from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LinearRegression
-from sklearn.metrics import mean_squared_error, r2_score
-import matplotlib.pyplot as plt
-import seaborn as sns
 from dotenv import load_dotenv
 
 # Cargar variables de entorno
@@ -28,14 +23,8 @@ s3_client = boto3.client(
     region_name=AWS_REGION
 )
 
-# Función para subir un archivo a S3
-def upload_to_s3(file_path, s3_client, bucket, key):
-    with open(file_path, 'rb') as data:
-        s3_client.upload_fileobj(data, bucket, key)
-    print(f"Archivo subido a S3 en {key}")
-
-# Función para listar y descargar todos los objetos en una carpeta
-def download_all_from_s3(s3_prefix, extract_to='/tmp'):
+# Función para descargar y extraer archivos ZIP desde S3
+def download_and_extract_from_s3(s3_prefix, extract_to='/tmp'):
     objects = s3_client.list_objects_v2(Bucket=BUCKET_NAME, Prefix=s3_prefix)
     
     if 'Contents' in objects:
@@ -72,6 +61,29 @@ def read_netcdf_with_chunks(file_path, variable_name, chunk_size=1000):
     else:
         return np.array([])  # Retorna un array vacío si no se encuentra la variable
 
+# Función para procesar todos los archivos NetCDF desde S3
+def process_netcdf_from_s3(data_dir='/tmp', variable_name='CO2'):
+    files = [f for f in os.listdir(data_dir) if f.endswith('.nc')]
+    data_list = []
+    
+    for file_name in files:
+        file_path = os.path.join(data_dir, file_name)
+        print(f"Procesando {file_name}...")
+        data = read_netcdf_with_chunks(file_path, variable_name)
+        
+        if len(data) > 0:
+            # Suponiendo que el nombre del archivo contiene el año
+            year = file_name.split('_')[2]
+            df = pd.DataFrame({
+                'Year': year,
+                'Data': data
+            })
+            data_list.append(df)
+            
+    # Combinar todos los DataFrames en uno solo
+    combined_df = pd.concat(data_list, ignore_index=True)
+    return combined_df
+
 # Variables y años
 variables = {
     "Crop Development Stage (DVS)": "crop_development_stage",
@@ -80,14 +92,18 @@ variables = {
 }
 years = ["2019", "2020", "2021", "2022", "2023"]
 
-# Descargar y extraer archivos
+# Descargar y extraer archivos desde S3
 for var in variables.values():
     for year in years:
         s3_prefix = f'crop_productivity_indicators/{year}/{var}_year_{year}.zip'
-        download_all_from_s3(s3_prefix)
+        download_and_extract_from_s3(s3_prefix)
 
-# Verificar los archivos extraídos
-print("Archivos extraídos en /tmp:")
-print(os.listdir('/tmp'))
+# Procesar los archivos NetCDF y organizar los datos
+variable_name = 'CO2'  # Ajusta según la variable que quieras leer
+data_df = process_netcdf_from_s3(variable_name=variable_name)
 
+# Mostrar la descripción estadística de los datos
+print(data_df.describe())
 
+# Imprimir una vista previa de los datos
+print(data_df.head())
