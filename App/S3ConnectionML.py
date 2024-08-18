@@ -40,11 +40,17 @@ def download_all_from_s3(s3_prefix, extract_to='/tmp'):
                     s3_client.download_fileobj(BUCKET_NAME, s3_key, temp_file)
                     temp_file_path = temp_file.name
                 
-                # Extraer el archivo ZIP
+                # Listar contenido del archivo ZIP antes de extraer
                 with zipfile.ZipFile(temp_file_path, 'r') as zip_ref:
-                    zip_ref.extractall(extract_to)
-                
-                print(f"Archivo {s3_key} descargado y extraído en {extract_to}")
+                    print(f"Contenido de {s3_key}:")
+                    for file_info in zip_ref.infolist():
+                        print(f" - {file_info.filename}")
+                    
+                    # Extraer archivos NetCDF
+                    for file_info in zip_ref.infolist():
+                        if file_info.filename.endswith('.nc'):
+                            zip_ref.extract(file_info, extract_to)
+                            print(f"Archivo {file_info.filename} extraído en {extract_to}")
     else:
         print(f"No se encontraron objetos en {s3_prefix}")
 
@@ -108,27 +114,4 @@ else:
         train_data, test_data = train_test_split(all_data, test_size=0.2, random_state=42)
 
         # Entrenar un modelo de regresión lineal
-        model = LinearRegression()
-        model.fit(train_data[["Total Above Ground Production (TAGP)", "Total Weight Storage Organs (TWSO)"]], train_data["Crop Development Stage (DVS)"])
-
-        # Realizar predicciones
-        predictions = model.predict(test_data[["Total Above Ground Production (TAGP)", "Total Weight Storage Organs (TWSO)"]])
-
-        # Evaluar el modelo
-        mse = mean_squared_error(test_data["Crop Development Stage (DVS)"], predictions)
-        r2 = r2_score(test_data["Crop Development Stage (DVS)"], predictions)
-
-        print(f"MSE: {mse}")
-        print(f"R^2: {r2}")
-
-        # Graficar los resultados
-        plt.figure(figsize=(10, 6))
-        sns.scatterplot(x=test_data["Crop Development Stage (DVS)"], y=predictions, label="Predicciones")
-        sns.lineplot(x=test_data["Crop Development Stage (DVS)"], y=test_data["Crop Development Stage (DVS)"], color='red', label="Valor Real")
-        plt.xlabel("Crop Development Stage (DVS)")
-        plt.ylabel("Predicciones")
-        plt.title("Predicciones vs. Valores Reales")
-        plt.legend()
-        plt.show()
-    else:
-        print("Las columnas necesarias para el modelo no están presentes en los datos.")
+        model = LinearRegression
