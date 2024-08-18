@@ -27,15 +27,15 @@ s3_client = boto3.client(
 class DataFrameBuilder:
     def __init__(self):
         self.data_list = []
-    
+
     def add_data(self, year, variable_name, data):
         df = pd.DataFrame({
-            'Year': year,
-            'Variable': variable_name,
+            'Year': [year] * len(data),
+            'Variable': [variable_name] * len(data),
             'Data': data
         })
         self.data_list.append(df)
-    
+
     def build(self):
         if not self.data_list:
             return pd.DataFrame()  # Return empty DataFrame if no data
@@ -43,7 +43,7 @@ class DataFrameBuilder:
 
 def download_and_extract_from_s3(s3_prefix, extract_to='/tmp'):
     objects = s3_client.list_objects_v2(Bucket=BUCKET_NAME, Prefix=s3_prefix)
-    
+
     if 'Contents' in objects:
         for obj in objects['Contents']:
             s3_key = obj['Key']
@@ -51,11 +51,11 @@ def download_and_extract_from_s3(s3_prefix, extract_to='/tmp'):
                 with tempfile.NamedTemporaryFile(delete=False) as temp_file:
                     s3_client.download_fileobj(BUCKET_NAME, s3_key, temp_file)
                     temp_file_path = temp_file.name
-                
+
                 # Extraer el archivo ZIP
                 with zipfile.ZipFile(temp_file_path, 'r') as zip_ref:
                     zip_ref.extractall(extract_to)
-                
+
                 print(f"Archivo {s3_key} descargado y extraído en {extract_to}")
     else:
         print(f"No se encontraron objetos en {s3_prefix}")
@@ -68,7 +68,7 @@ def list_netcdf_variables(file_path):
 
 def read_netcdf_with_chunks(file_path, variable_name, chunk_size=1000):
     data = []
-    
+
     with Dataset(file_path, 'r') as nc:
         if variable_name in nc.variables:
             var_data = nc.variables[variable_name]
@@ -77,7 +77,7 @@ def read_netcdf_with_chunks(file_path, variable_name, chunk_size=1000):
                 data.append(chunk)
         else:
             print(f"Advertencia: '{variable_name}' no encontrado en {file_path}")
-    
+
     if len(data) > 0:
         return np.concatenate(data)
     else:
@@ -85,12 +85,12 @@ def read_netcdf_with_chunks(file_path, variable_name, chunk_size=1000):
 
 def process_netcdf_files(data_dir='/tmp', builder=None):
     files = [f for f in os.listdir(data_dir) if f.endswith('.nc')]
-    
+
     for file_name in files:
         file_path = os.path.join(data_dir, file_name)
         print(f"Procesando {file_name}...")
         file_variables = list_netcdf_variables(file_path)
-        
+
         for variable_name in file_variables:
             data = read_netcdf_with_chunks(file_path, variable_name)
             if len(data) > 0:
@@ -102,7 +102,7 @@ def upload_to_s3(df, s3_prefix):
     with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as temp_file:
         df.to_csv(temp_file.name, index=False)
         temp_file_path = temp_file.name
-    
+
     # Upload the CSV file to S3
     s3_client.upload_file(temp_file_path, BUCKET_NAME, s3_prefix)
     print(f"Archivo CSV subido a S3 en {s3_prefix}")
@@ -113,31 +113,31 @@ def process_year_folder(year):
         "total_above_ground_production",
         "total_weight_storage_organs"
     ]
-    
+
     for var in variables:
         s3_prefix = f'crop_productivity_indicators/{year}/{var}_year_{year}.zip'
         download_and_extract_from_s3(s3_prefix)
-        
-        # Create a builder instance
+
+        # Crear una instancia de DataFrameBuilder
         builder = DataFrameBuilder()
-        
-        # Process NetCDF files
+
+        # Procesar archivos NetCDF
         process_netcdf_files(data_dir='/tmp', builder=builder)
-        
-        # Build the DataFrame
+
+        # Construir el DataFrame
         data_df = builder.build()
-        
-        # Upload the DataFrame to S3
+
+        # Subir el DataFrame a S3
         if not data_df.empty:
             s3_upload_prefix = f'processed_data/{year}/{var}_processed.csv'
             upload_to_s3(data_df, s3_upload_prefix)
-        
-        # Clean up temporary files
+
+        # Limpiar archivos temporales
         for file in os.listdir('/tmp'):
             file_path = os.path.join('/tmp', file)
             if os.path.isfile(file_path):
                 os.remove(file_path)
-                
+
 def worker(year):
     print(f"Inicio del procesamiento para el año {year}")
     process_year_folder(year)
