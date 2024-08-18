@@ -30,6 +30,11 @@ class DataFrameBuilder:
         self.data = []
 
     def add_data(self, year, variable_name, lat, lon, time, values):
+        # Verificar si todas las listas tienen la misma longitud
+        if not (len(lat) == len(lon) == len(time) == len(values)):
+            print(f"Advertencia: Las longitudes de los datos no coinciden para {variable_name} del año {year}.")
+            return
+        
         df = pd.DataFrame({
             'Year': year,
             'Variable': variable_name,
@@ -112,12 +117,15 @@ def process_year_data(year, variables):
         process_netcdf_from_s3(data_dir=f'/tmp/{year}', builder=builder)
         
         df = builder.get_dataframe()
-        df.to_csv(f'/tmp/{year}/{year}_data.csv', index=False)
-        print(f"Datos del año {year} procesados y guardados en /tmp/{year}/{year}_data.csv")
+        if not df.empty:
+            df.to_csv(f'/tmp/{year}/{year}_data.csv', index=False)
+            print(f"Datos del año {year} procesados y guardados en /tmp/{year}/{year}_data.csv")
+        else:
+            print(f"No se encontraron datos procesables para el año {year}")
 
 # Variables y años
 variables = ["crop_development_stage", "total_above_ground_production", "total_weight_storage_organs"]
-years = ["2019"]
+years = ["2019", "2020", "2021", "2022", "2023"]
 
 # Crear y ejecutar hilos para procesar los datos de cada año
 threads = []
