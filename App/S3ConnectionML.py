@@ -1,6 +1,7 @@
 import boto3
 import zipfile
 import io
+import os
 import xarray as xr
 import numpy as np
 from dotenv import load_dotenv
