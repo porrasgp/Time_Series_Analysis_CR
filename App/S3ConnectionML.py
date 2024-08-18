@@ -24,31 +24,27 @@ s3_client = boto3.client(
     region_name=AWS_REGION
 )
 
-def download_and_extract_from_s3(s3_prefix):
-    with tempfile.TemporaryDirectory() as temp_dir:
-        objects = s3_client.list_objects_v2(Bucket=BUCKET_NAME, Prefix=s3_prefix)
-        
-        if 'Contents' in objects:
-            for obj in objects['Contents']:
-                s3_key = obj['Key']
-                if s3_key.endswith('.zip'):
-                    try:
-                        with tempfile.NamedTemporaryFile(delete=False) as temp_file:
-                            s3_client.download_fileobj(BUCKET_NAME, s3_key, temp_file)
-                            temp_file_path = temp_file.name
-                        
-                        # Extraer el archivo ZIP
-                        with zipfile.ZipFile(temp_file_path, 'r') as zip_ref:
-                            zip_ref.extractall(temp_dir)
-                        
-                        print(f"Archivo {s3_key} descargado y extraído en {temp_dir}")
-                    except Exception as e:
-                        print(f"Error al procesar {s3_key}: {e}")
-        else:
-            print(f"No se encontraron objetos en {s3_prefix}")
-
-        # Retornar el directorio temporal para el procesamiento posterior
-        return temp_dir
+def download_and_extract_from_s3(s3_prefix, temp_dir):
+    objects = s3_client.list_objects_v2(Bucket=BUCKET_NAME, Prefix=s3_prefix)
+    
+    if 'Contents' in objects:
+        for obj in objects['Contents']:
+            s3_key = obj['Key']
+            if s3_key.endswith('.zip'):
+                try:
+                    with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+                        s3_client.download_fileobj(BUCKET_NAME, s3_key, temp_file)
+                        temp_file_path = temp_file.name
+                    
+                    # Extraer el archivo ZIP
+                    with zipfile.ZipFile(temp_file_path, 'r') as zip_ref:
+                        zip_ref.extractall(temp_dir)
+                    
+                    print(f"Archivo {s3_key} descargado y extraído en {temp_dir}")
+                except Exception as e:
+                    print(f"Error al procesar {s3_key}: {e}")
+    else:
+        print(f"No se encontraron objetos en {s3_prefix}")
 
 def list_netcdf_variables(file_path):
     try:
@@ -113,8 +109,8 @@ def process_netcdf_from_s3(temp_dir):
 def process_year_folder(year, variable):
     s3_prefix = f'crop_productivity_indicators/{year}/{variable}_year_{year}.zip'
     
-    temp_dir = download_and_extract_from_s3(s3_prefix)
-    if temp_dir:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        download_and_extract_from_s3(s3_prefix, temp_dir)
         return process_netcdf_from_s3(temp_dir)
 
 if __name__ == '__main__':
