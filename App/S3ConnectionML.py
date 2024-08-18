@@ -4,8 +4,6 @@ import zipfile
 import tempfile
 import xarray as xr
 import numpy as np
-import dask
-from dask.distributed import Client
 from dotenv import load_dotenv
 
 # Cargar variables de entorno
@@ -23,9 +21,6 @@ s3_client = boto3.client(
     aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
     region_name=AWS_REGION
 )
-
-# Configurar el cliente dask
-client = Client()
 
 def download_and_extract_from_s3(s3_prefix, extract_to='/tmp'):
     objects = s3_client.list_objects_v2(Bucket=BUCKET_NAME, Prefix=s3_prefix)
@@ -50,8 +45,16 @@ def process_netcdf_files(data_dir='/tmp'):
     files = [os.path.join(data_dir, f) for f in os.listdir(data_dir) if f.endswith('.nc')]
     print(f"Procesando archivos: {files}...")
     
-    # Leer múltiples archivos NetCDF con chunks
+    # Leer múltiples archivos NetCDF usando xarray
     ds = xr.open_mfdataset(files, combine='by_coords', chunks={'time': 10})
+    
+    # Convertir la coordenada de tiempo a datetime64[ns]
+    if 'time' in ds.coords:
+        time_float = ds.coords['time']
+        new_time = xr.coding.times.decode_cf_datetime(time_float, units='days since 1970-01-01')
+        ds = ds.assign_coords(time=new_time)
+        print("La coordenada de tiempo se ha convertido a datetime64[ns].")
+    
     return ds
 
 def print_dataset_summary(ds):
