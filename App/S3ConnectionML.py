@@ -1,7 +1,6 @@
 import boto3
 import zipfile
 import io
-import os
 import xarray as xr
 import numpy as np
 from dotenv import load_dotenv
@@ -53,9 +52,9 @@ def extract_and_load_nc_data_by_chunks(zip_file, variable_name):
 def main():
     # Ajustar los nombres de archivo ZIP y sus claves en S3
     zip_files = {
-        "Crop Development stage": "crop_productivity_indicators/2023/crop_development_stage_year_2023.zip",
-        "Total Above ground production": "crop_productivity_indicators/2023/total_above_ground_production_year_2023.zip",
-        "Total weight storage organs": "crop_productivity_indicators/2023/total_weight_storage_organs_year_2023.zip"
+        "Crop Development stage": "crop_productivity_indicators/2019/crop_development_stage_year_2019.zip",
+        "Total Above ground production": "crop_productivity_indicators/2019/total_above_ground_production_year_2019.zip",
+        "Total weight storage organs": "crop_productivity_indicators/2019/total_weight_storage_organs_year_2019.zip"
     }
 
     # Descargar y procesar archivos ZIP
