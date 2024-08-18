@@ -51,23 +51,15 @@ def list_netcdf_variables(file_path):
     return variables
 
 # Función para leer archivos NetCDF y cargar datos específicos por chunks
-def read_netcdf_with_chunks(file_path, variable_name, chunk_size=500):
+def read_netcdf_with_chunks(file_path, variable_name, chunk_size=1000):
     data = []
     
     with Dataset(file_path, 'r') as nc:
         if variable_name in nc.variables:
             var_data = nc.variables[variable_name]
-            print(f"Forma de datos de '{variable_name}': {var_data.shape}")
-            
-            try:
-                for i in range(0, var_data.shape[0], chunk_size):
-                    chunk = var_data[i:i+chunk_size]
-                    if chunk.ndim > 1:
-                        chunk = chunk.reshape(-1)
-                    data.append(chunk)
-            except Exception as e:
-                print(f"Error al procesar datos en '{file_path}': {e}")
-            
+            for i in range(0, var_data.shape[0], chunk_size):
+                chunk = var_data[i:i+chunk_size].flatten()
+                data.append(chunk)
         else:
             print(f"Advertencia: '{variable_name}' no encontrado en {file_path}")
     
@@ -76,10 +68,11 @@ def read_netcdf_with_chunks(file_path, variable_name, chunk_size=500):
     else:
         return np.array([])  # Retorna un array vacío si no se encuentra la variable
 
-# Función para procesar todos los archivos NetCDF desde S3 y agregar datos al DataFrame
+# Función para procesar archivos NetCDF y actualizar el DataFrame
 def process_netcdf_from_s3(data_dir='/tmp'):
-    files = [f for f in os.listdir(data_dir) if f.endswith('.nc')]
     data_list = []
+    
+    files = [f for f in os.listdir(data_dir) if f.endswith('.nc')]
     
     for file_name in files:
         file_path = os.path.join(data_dir, file_name)
