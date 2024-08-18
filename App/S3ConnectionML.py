@@ -6,7 +6,7 @@ import pandas as pd
 import numpy as np
 from netCDF4 import Dataset
 from dotenv import load_dotenv
-import threading
+from multiprocessing import Pool
 
 # Cargar variables de entorno
 load_dotenv()
@@ -24,34 +24,30 @@ s3_client = boto3.client(
     region_name=AWS_REGION
 )
 
-# Crear un semáforo para controlar el acceso a recursos compartidos
-semaphore = threading.Semaphore(4)  # Ajustar el número de threads simultáneos
-
 # Función para descargar, extraer y procesar archivos ZIP desde S3
 def process_zip_from_s3(s3_prefix):
-    with semaphore:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            objects = s3_client.list_objects_v2(Bucket=BUCKET_NAME, Prefix=s3_prefix)
-            
-            if 'Contents' in objects:
-                for obj in objects['Contents']:
-                    s3_key = obj['Key']
-                    if s3_key.endswith('.zip'):
-                        with tempfile.NamedTemporaryFile(delete=False) as temp_file:
-                            s3_client.download_fileobj(BUCKET_NAME, s3_key, temp_file)
-                            temp_file_path = temp_file.name
-                        
-                        # Extraer el archivo ZIP
-                        with zipfile.ZipFile(temp_file_path, 'r') as zip_ref:
-                            zip_ref.extractall(temp_dir)
-                        
-                        print(f"Archivo {s3_key} descargado y extraído en {temp_dir}")
-                        
-                        # Procesar los archivos NetCDF y organizar los datos
-                        data_df = process_netcdf_from_s3(temp_dir)
-                        print(data_df.head())
-            else:
-                print(f"No se encontraron objetos en {s3_prefix}")
+    with tempfile.TemporaryDirectory() as temp_dir:
+        objects = s3_client.list_objects_v2(Bucket=BUCKET_NAME, Prefix=s3_prefix)
+        
+        if 'Contents' in objects:
+            for obj in objects['Contents']:
+                s3_key = obj['Key']
+                if s3_key.endswith('.zip'):
+                    with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+                        s3_client.download_fileobj(BUCKET_NAME, s3_key, temp_file)
+                        temp_file_path = temp_file.name
+                    
+                    # Extraer el archivo ZIP
+                    with zipfile.ZipFile(temp_file_path, 'r') as zip_ref:
+                        zip_ref.extractall(temp_dir)
+                    
+                    print(f"Archivo {s3_key} descargado y extraído en {temp_dir}")
+                    
+                    # Procesar los archivos NetCDF y organizar los datos
+                    data_df = process_netcdf_from_s3(temp_dir)
+                    print(data_df.head())
+        else:
+            print(f"No se encontraron objetos en {s3_prefix}")
 
 # Función para listar variables disponibles en un archivo NetCDF
 def list_netcdf_variables(file_path):
@@ -107,6 +103,10 @@ def process_netcdf_from_s3(data_dir):
     else:
         return pd.DataFrame()  # Retorna un DataFrame vacío si no hay datos
 
+# Wrapper function to process a single ZIP file
+def process_zip_wrapper(args):
+    return process_zip_from_s3(*args)
+
 # Variables y años
 variables = {
     "Crop Development Stage (DVS)": "crop_development_stage",
@@ -115,17 +115,9 @@ variables = {
 }
 years = ["2019", "2020", "2021", "2022", "2023"]
 
-# Descargar, extraer y procesar archivos desde S3
-threads = []
-for var in variables.values():
-    for year in years:
-        s3_prefix = f'crop_productivity_indicators/{year}/{var}_year_{year}.zip'
-        thread = threading.Thread(target=process_zip_from_s3, args=(s3_prefix,))
-        threads.append(thread)
-        thread.start()
-
-# Esperar a que todos los threads terminen
-for thread in threads:
-    thread.join()
+# Descargar, extraer y procesar archivos desde S3 en paralelo usando multiprocessing
+if __name__ == '__main__':
+    with Pool(processes=4) as pool:  # Ajusta el número de procesos según tu necesidad
+        pool.map(process_zip_wrapper, [(f'crop_productivity_indicators/{year}/{var}_year_{year}.zip',) for var in variables.values() for year in years])
 
 print("Procesamiento completado.")
