@@ -1,134 +1,60 @@
 import os
 import boto3
-import zipfile
-import tempfile
-import numpy as np
 import pandas as pd
-from netCDF4 import Dataset
-from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LinearRegression
-from sklearn.metrics import mean_squared_error, r2_score
-import matplotlib.pyplot as plt
-import seaborn as sns
-from dotenv import load_dotenv
+import netCDF4 as nc
+from datetime import datetime
 
-# Cargar variables de entorno
-load_dotenv()
+# AWS S3 Configuration
+s3_client = boto3.client('s3')
+bucket_name = 'maize-climate-data-store'
 
-AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
-AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
-AWS_REGION = "us-east-1"
-BUCKET_NAME = "maize-climate-data-store"
-
-# Crear el cliente de S3
-s3_client = boto3.client(
-    's3',
-    aws_access_key_id=AWS_ACCESS_KEY_ID,
-    aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
-    region_name=AWS_REGION
-)
-
-# Función para listar y descargar todos los objetos en una carpeta
-def download_all_from_s3(s3_prefix, extract_to='/tmp'):
-    objects = s3_client.list_objects_v2(Bucket=BUCKET_NAME, Prefix=s3_prefix)
+def process_file(file_path, year, variable):
+    """Process NetCDF file and convert to pandas DataFrame."""
+    # Open the NetCDF file
+    dataset = nc.Dataset(file_path)
     
-    if 'Contents' in objects:
-        for obj in objects['Contents']:
-            s3_key = obj['Key']
-            if s3_key.endswith('.zip'):
-                with tempfile.NamedTemporaryFile(delete=False) as temp_file:
-                    s3_client.download_fileobj(BUCKET_NAME, s3_key, temp_file)
-                    temp_file_path = temp_file.name
-                
-                # Extraer el archivo ZIP
-                with zipfile.ZipFile(temp_file_path, 'r') as zip_ref:
-                    zip_ref.extractall(extract_to)
-                
-                print(f"Archivo {s3_key} descargado y extraído en {extract_to}")
-    else:
-        print(f"No se encontraron objetos en {s3_prefix}")
-
-# Descargar y extraer todos los archivos en la carpeta especificada
-s3_prefix = 'crop_productivity_indicators/'
-download_all_from_s3(s3_prefix)
-
-# Verificar los archivos extraídos
-print("Archivos extraídos en /tmp:")
-print(os.listdir('/tmp'))
-
-# Función para leer archivos NetCDF y cargar datos específicos por chunks
-def read_netcdf_with_chunks(file_path, variable_name, chunk_size=1000):
-    data = []
+    # Extract data
+    data = dataset.variables[variable][:]
+    time = dataset.variables['time'][:]
+    # Convert to DataFrame (Example for a single variable)
+    df = pd.DataFrame(data, columns=[variable])
     
-    with Dataset(file_path, 'r') as nc:
-        if variable_name in nc.variables:
-            var_data = nc.variables[variable_name]
-            for i in range(0, var_data.shape[0], chunk_size):
-                chunk = var_data[i:i+chunk_size].flatten()
-                data.append(chunk)
-        else:
-            print(f"Advertencia: '{variable_name}' no encontrado en {file_path}")
+    # Adding a column for time if needed
+    df['time'] = pd.to_datetime(time, unit='D', origin='1900-01-01')
     
-    if len(data) > 0:
-        return np.concatenate(data)
-    else:
-        return np.array([])  # Retorna un array vacío si no se encuentra la variable
+    return df
 
-# Variables y archivos extraídos a procesar
-variables = {
-    "Crop Development Stage (DVS)": "Maize_DVS_C3S-glob-agric_2019_1_2019-04-10_dek_CSSF_hist_v1.nc",
-    "Total Above Ground Production (TAGP)": "Maize_TAGP_C3S-glob-agric_2019_1_2019-04-10_dek_CSSF_hist_v1.nc",
-    "Total Weight Storage Organs (TWSO)": "Maize_TWSO_C3S-glob-agric_2019_1_2019-04-10_dek_CSSF_hist_v1.nc"
-}
+def upload_to_s3(df, year, variable):
+    """Upload DataFrame to S3."""
+    # Convert DataFrame to CSV
+    csv_data = df.to_csv(index=False)
+    
+    # Define S3 key
+    s3_key = f"{year}/{variable}.csv"
+    
+    # Upload to S3
+    s3_client.put_object(
+        Bucket=bucket_name,
+        Key=s3_key,
+        Body=csv_data,
+        ContentType='text/csv'
+    )
+    print(f"Uploaded {s3_key} to S3")
 
-# Procesar los datos y cargar en un DataFrame
-all_data = pd.DataFrame()
+def main():
+    base_directory = '/path/to/your/files'  # Update with the path to your files
+    for file_name in os.listdir(base_directory):
+        if file_name.endswith('.nc'):
+            file_path = os.path.join(base_directory, file_name)
+            
+            # Extract year and variable from the file name (Example pattern)
+            parts = file_name.split('_')
+            year = parts[2]
+            variable = parts[1]  # Update if necessary
+            
+            # Process file and upload to S3
+            df = process_file(file_path, year, variable)
+            upload_to_s3(df, year, variable)
 
-for var_name, file_name in variables.items():
-    file_path = f"/tmp/{file_name}"
-    if os.path.isfile(file_path):
-        var_data = read_netcdf_with_chunks(file_path, var_name)
-        if var_data.size > 0:
-            all_data[var_name] = var_data
-        else:
-            print(f"No se encontraron datos para '{var_name}' en {file_path}")
-    else:
-        print(f"Archivo {file_name} no encontrado en {file_path}")
-
-# Verificar si los datos se han cargado correctamente
-if all_data.empty:
-    print("No se han cargado datos en el DataFrame.")
-else:
-    print(all_data.head())
-    print(all_data.describe())
-
-    # Dividir los datos en conjunto de entrenamiento y prueba
-    if "Total Above Ground Production (TAGP)" in all_data.columns and "Total Weight Storage Organs (TWSO)" in all_data.columns:
-        # Asegúrate de que las columnas necesarias existan
-        train_data, test_data = train_test_split(all_data, test_size=0.2, random_state=42)
-
-        # Entrenar un modelo de regresión lineal
-        model = LinearRegression()
-        model.fit(train_data[["Total Above Ground Production (TAGP)", "Total Weight Storage Organs (TWSO)"]], train_data["Crop Development Stage (DVS)"])
-
-        # Realizar predicciones
-        predictions = model.predict(test_data[["Total Above Ground Production (TAGP)", "Total Weight Storage Organs (TWSO)"]])
-
-        # Evaluar el modelo
-        mse = mean_squared_error(test_data["Crop Development Stage (DVS)"], predictions)
-        r2 = r2_score(test_data["Crop Development Stage (DVS)"], predictions)
-
-        print(f"MSE: {mse}")
-        print(f"R^2: {r2}")
-
-        # Graficar los resultados
-        plt.figure(figsize=(10, 6))
-        sns.scatterplot(x=test_data["Crop Development Stage (DVS)"], y=predictions, label="Predicciones")
-        sns.lineplot(x=test_data["Crop Development Stage (DVS)"], y=test_data["Crop Development Stage (DVS)"], color='red', label="Valor Real")
-        plt.xlabel("Crop Development Stage (DVS)")
-        plt.ylabel("Predicciones")
-        plt.title("Predicciones vs. Valores Reales")
-        plt.legend()
-        plt.show()
-    else:
-        print("Las columnas necesarias para el modelo no están presentes en los datos.")
+if __name__ == "__main__":
+    main()
