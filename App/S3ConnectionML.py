@@ -74,7 +74,7 @@ def read_netcdf_with_chunks(file_path, variable_name, chunk_size=1000):
 
 # Variables y años
 variables = {
-    "Crop Development Stage (DVS)": "crop_development_stage.",
+    "Crop Development Stage (DVS)": "crop_development_stage",
     "Total Above Ground Production (TAGP)": "total_above_ground_production",
     "Total Weight Storage Organs (TWSO)": "total_weight_storage_organs"
 }
