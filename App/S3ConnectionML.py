@@ -125,7 +125,7 @@ def process_year_data(year, variables):
 
 # Variables y años
 variables = ["crop_development_stage", "total_above_ground_production", "total_weight_storage_organs"]
-years = ["2019", "2020", "2021", "2022", "2023"]
+years = ["2019"]
 
 # Crear y ejecutar hilos para procesar los datos de cada año
 threads = []
