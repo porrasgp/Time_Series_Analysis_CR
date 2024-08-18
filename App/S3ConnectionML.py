@@ -54,22 +54,22 @@ def list_netcdf_variables(file_path):
 def read_netcdf_with_chunks(file_path, variable_name, chunk_size=1000):
     data = []
     
-    try:
-        with Dataset(file_path, 'r') as nc:
-            if variable_name in nc.variables:
-                var_data = nc.variables[variable_name]
-                print(f"Forma de datos de '{variable_name}': {var_data.shape}")
-                
-                # Leer datos en chunks
+    with Dataset(file_path, 'r') as nc:
+        if variable_name in nc.variables:
+            var_data = nc.variables[variable_name]
+            print(f"Forma de datos de '{variable_name}': {var_data.shape}")
+            
+            try:
                 for i in range(0, var_data.shape[0], chunk_size):
                     chunk = var_data[i:i+chunk_size]
                     if chunk.ndim > 1:
                         chunk = chunk.reshape(-1)
                     data.append(chunk)
-            else:
-                print(f"Advertencia: '{variable_name}' no encontrado en {file_path}")
-    except Exception as e:
-        print(f"Error al procesar datos en '{file_path}': {e}")
+            except Exception as e:
+                print(f"Error al procesar datos en '{file_path}': {e}")
+            
+        else:
+            print(f"Advertencia: '{variable_name}' no encontrado en {file_path}")
     
     if len(data) > 0:
         return np.concatenate(data)
@@ -100,11 +100,7 @@ def process_netcdf_from_s3(data_dir='/tmp'):
                         data_list.append(df)
     
     # Combinar todos los DataFrames en uno solo
-    if data_list:
-        combined_df = pd.concat(data_list, ignore_index=True)
-    else:
-        combined_df = pd.DataFrame(columns=['Year', 'Variable', 'Data'])
-        
+    combined_df = pd.concat(data_list, ignore_index=True)
     return combined_df
 
 # Variables y años
