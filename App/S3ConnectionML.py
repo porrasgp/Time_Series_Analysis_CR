@@ -17,8 +17,8 @@ load_dotenv()
 
 AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
-AWS_REGION = "us-east-2"
-BUCKET_NAME = "trabajofinalmasterucmoscarduran"
+AWS_REGION = "us-east-1"
+BUCKET_NAME = "maize-climate-data-store"
 
 # Función para descargar y extraer archivos desde S3
 def download_and_extract_zip_from_s3(s3_key, extract_to='/tmp'):
