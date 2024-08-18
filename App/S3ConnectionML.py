@@ -69,7 +69,7 @@ def read_netcdf_with_chunks(file_path, variable_name, chunk_size=1000):
         return np.array([])  # Retorna un array vacío si no se encuentra la variable
 
 # Función para procesar todos los archivos NetCDF desde S3
-def process_netcdf_from_s3(data_dir='/tmp', variables=['CO2']):
+def process_netcdf_from_s3(data_dir='/tmp', variables=['DVS','TAGP', 'TWSO']):
     files = [f for f in os.listdir(data_dir) if f.endswith('.nc')]
     data_list = []
     
