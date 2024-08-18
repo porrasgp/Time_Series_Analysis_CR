@@ -69,7 +69,7 @@ def read_netcdf_with_chunks(file_path, variable_name, chunk_size=1000):
         return np.array([])  # Retorna un array vacío si no se encuentra la variable
 
 # Función para procesar todos los archivos NetCDF desde S3
-def process_netcdf_from_s3(data_dir='/tmp', variables=['DVS','TAGP', 'TWSO']):
+def process_netcdf_from_s3(data_dir='/tmp'):
     files = [f for f in os.listdir(data_dir) if f.endswith('.nc')]
     data_list = []
     
@@ -78,19 +78,16 @@ def process_netcdf_from_s3(data_dir='/tmp', variables=['DVS','TAGP', 'TWSO']):
         print(f"Procesando {file_name}...")
         file_variables = list_netcdf_variables(file_path)
         
-        for variable_name in variables:
-            if variable_name in file_variables:
-                data = read_netcdf_with_chunks(file_path, variable_name)
-                if len(data) > 0:
-                    year = file_name.split('_')[2]
-                    df = pd.DataFrame({
-                        'Year': year,
-                        'Variable': variable_name,
-                        'Data': data
-                    })
-                    data_list.append(df)
-            else:
-                print(f"Variable '{variable_name}' no encontrada en {file_name}")
+        for variable_name in file_variables:
+            data = read_netcdf_with_chunks(file_path, variable_name)
+            if len(data) > 0:
+                year = file_name.split('_')[2]
+                df = pd.DataFrame({
+                    'Year': year,
+                    'Variable': variable_name,
+                    'Data': data
+                })
+                data_list.append(df)
                 
     # Combinar todos los DataFrames en uno solo
     combined_df = pd.concat(data_list, ignore_index=True)
@@ -111,8 +108,7 @@ for var in variables.values():
         download_and_extract_from_s3(s3_prefix)
 
 # Procesar los archivos NetCDF y organizar los datos
-variable_names = list(variables.values())  # Lista de variables a procesar
-data_df = process_netcdf_from_s3(variable_names=variable_names)
+data_df = process_netcdf_from_s3()
 
 # Mostrar la descripción estadística de los datos
 print(data_df.describe())
