@@ -43,7 +43,7 @@ def download_and_extract_from_s3(s3_prefix, extract_to='/tmp'):
                     
                     print(f"Archivo {s3_key} descargado y extraído en {extract_to}")
                     os.remove(temp_file_path)  # Eliminar archivo temporal después de extraer
-                    time.sleep(100)  # Tiempo de espera entre descargas para evitar sobrecarga
+                    time.sleep(10)  # Tiempo de espera entre descargas para evitar sobrecarga
         else:
             print(f"No se encontraron objetos en {s3_prefix}")
     except Exception as e:
