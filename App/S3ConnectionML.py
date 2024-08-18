@@ -6,6 +6,7 @@ import pandas as pd
 import numpy as np
 from netCDF4 import Dataset
 from dotenv import load_dotenv
+import threading
 
 # Cargar variables de entorno
 load_dotenv()
@@ -23,25 +24,34 @@ s3_client = boto3.client(
     region_name=AWS_REGION
 )
 
-# Función para descargar y extraer archivos ZIP desde S3
-def download_and_extract_from_s3(s3_prefix, extract_to='/tmp'):
-    objects = s3_client.list_objects_v2(Bucket=BUCKET_NAME, Prefix=s3_prefix)
-    
-    if 'Contents' in objects:
-        for obj in objects['Contents']:
-            s3_key = obj['Key']
-            if s3_key.endswith('.zip'):
-                with tempfile.NamedTemporaryFile(delete=False) as temp_file:
-                    s3_client.download_fileobj(BUCKET_NAME, s3_key, temp_file)
-                    temp_file_path = temp_file.name
-                
-                # Extraer el archivo ZIP
-                with zipfile.ZipFile(temp_file_path, 'r') as zip_ref:
-                    zip_ref.extractall(extract_to)
-                
-                print(f"Archivo {s3_key} descargado y extraído en {extract_to}")
-    else:
-        print(f"No se encontraron objetos en {s3_prefix}")
+# Crear un semáforo para controlar el acceso a recursos compartidos
+semaphore = threading.Semaphore(4)  # Ajustar el número de threads simultáneos
+
+# Función para descargar, extraer y procesar archivos ZIP desde S3
+def process_zip_from_s3(s3_prefix):
+    with semaphore:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            objects = s3_client.list_objects_v2(Bucket=BUCKET_NAME, Prefix=s3_prefix)
+            
+            if 'Contents' in objects:
+                for obj in objects['Contents']:
+                    s3_key = obj['Key']
+                    if s3_key.endswith('.zip'):
+                        with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+                            s3_client.download_fileobj(BUCKET_NAME, s3_key, temp_file)
+                            temp_file_path = temp_file.name
+                        
+                        # Extraer el archivo ZIP
+                        with zipfile.ZipFile(temp_file_path, 'r') as zip_ref:
+                            zip_ref.extractall(temp_dir)
+                        
+                        print(f"Archivo {s3_key} descargado y extraído en {temp_dir}")
+                        
+                        # Procesar los archivos NetCDF y organizar los datos
+                        data_df = process_netcdf_from_s3(temp_dir)
+                        print(data_df.head())
+            else:
+                print(f"No se encontraron objetos en {s3_prefix}")
 
 # Función para listar variables disponibles en un archivo NetCDF
 def list_netcdf_variables(file_path):
@@ -69,7 +79,7 @@ def read_netcdf_with_chunks(file_path, variable_name, chunk_size=1000):
         return np.array([])  # Retorna un array vacío si no se encuentra la variable
 
 # Función para procesar archivos NetCDF y actualizar el DataFrame
-def process_netcdf_from_s3(data_dir='/tmp'):
+def process_netcdf_from_s3(data_dir):
     data_list = []
     
     files = [f for f in os.listdir(data_dir) if f.endswith('.nc')]
@@ -91,8 +101,11 @@ def process_netcdf_from_s3(data_dir='/tmp'):
                 data_list.append(df)
                 
     # Combinar todos los DataFrames en uno solo
-    combined_df = pd.concat(data_list, ignore_index=True)
-    return combined_df
+    if data_list:
+        combined_df = pd.concat(data_list, ignore_index=True)
+        return combined_df
+    else:
+        return pd.DataFrame()  # Retorna un DataFrame vacío si no hay datos
 
 # Variables y años
 variables = {
@@ -102,17 +115,17 @@ variables = {
 }
 years = ["2019", "2020", "2021", "2022", "2023"]
 
-# Descargar y extraer archivos desde S3
+# Descargar, extraer y procesar archivos desde S3
+threads = []
 for var in variables.values():
     for year in years:
         s3_prefix = f'crop_productivity_indicators/{year}/{var}_year_{year}.zip'
-        download_and_extract_from_s3(s3_prefix)
+        thread = threading.Thread(target=process_zip_from_s3, args=(s3_prefix,))
+        threads.append(thread)
+        thread.start()
 
-# Procesar los archivos NetCDF y organizar los datos
-data_df = process_netcdf_from_s3()
+# Esperar a que todos los threads terminen
+for thread in threads:
+    thread.join()
 
-# Mostrar la descripción estadística de los datos
-print(data_df.describe())
-
-# Imprimir una vista previa de los datos
-print(data_df.head())
+print("Procesamiento completado.")
