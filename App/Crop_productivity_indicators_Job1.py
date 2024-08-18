@@ -114,9 +114,9 @@ def main():
 
     for var in variables:
         for year in years:
-            # Buscar archivos NetCDF específicos en el directorio temporal
+            # Buscar archivos NetCDF específicos en el directorio temporal usando los nombres extraídos
             file_prefix = f"Maize_{var}_C3S-glob-agric_{year}_1_{year}-"
-            matching_files = [f for f in os.listdir('/tmp') if f.startswith(file_prefix) and f.endswith('.nc')]
+            matching_files = [f for f in extracted_files if f.startswith(file_prefix) and f.endswith('.nc')]
 
             if matching_files:
                 for file in matching_files:
