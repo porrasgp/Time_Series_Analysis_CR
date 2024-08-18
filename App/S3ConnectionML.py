@@ -1,11 +1,11 @@
 import os
 import boto3
 import zipfile
-import tempfile
 import pandas as pd
 import numpy as np
 from netCDF4 import Dataset
 from dotenv import load_dotenv
+from io import StringIO
 
 # Cargar variables de entorno
 load_dotenv()
@@ -14,6 +14,7 @@ AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 AWS_REGION = "us-east-1"
 BUCKET_NAME = "maize-climate-data-store"
+PROCESSED_PREFIX = "processed_data"
 
 # Crear cliente S3
 s3_client = boto3.client(
@@ -23,28 +24,19 @@ s3_client = boto3.client(
     region_name=AWS_REGION
 )
 
-def download_and_extract_from_s3(s3_prefix, temp_dir):
-    objects = s3_client.list_objects_v2(Bucket=BUCKET_NAME, Prefix=s3_prefix)
-    
-    if 'Contents' in objects:
-        for obj in objects['Contents']:
-            s3_key = obj['Key']
-            if s3_key.endswith('.zip'):
-                try:
-                    # Descargar el archivo ZIP
-                    with tempfile.NamedTemporaryFile(delete=False) as temp_file:
-                        s3_client.download_fileobj(BUCKET_NAME, s3_key, temp_file)
-                        temp_file_path = temp_file.name
-                    
-                    # Extraer el archivo ZIP
-                    with zipfile.ZipFile(temp_file_path, 'r') as zip_ref:
-                        zip_ref.extractall(temp_dir)
-                    
-                    print(f"Archivo {s3_key} descargado y extraído en {temp_dir}")
-                except Exception as e:
-                    print(f"Error al procesar {s3_key}: {e}")
-    else:
-        print(f"No se encontraron objetos en {s3_prefix}")
+def download_and_extract_from_s3(s3_key):
+    try:
+        with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+            s3_client.download_fileobj(BUCKET_NAME, s3_key, temp_file)
+            temp_file_path = temp_file.name
+        
+        with zipfile.ZipFile(temp_file_path, 'r') as zip_ref:
+            zip_ref.extractall('/tmp/')
+        
+        return temp_file_path
+    except Exception as e:
+        print(f"Error al procesar {s3_key}: {e}")
+        return None
 
 def list_netcdf_variables(file_path):
     try:
@@ -71,47 +63,40 @@ def read_netcdf_with_chunks(file_path, variable_name, chunk_size=1000):
     
     return np.concatenate(data) if data else np.array([])
 
-def process_netcdf_from_s3(temp_dir):
-    data_list = []
+def process_netcdf(file_path, year, variable_name):
+    data = read_netcdf_with_chunks(file_path, variable_name)
+    if len(data) > 0:
+        df = pd.DataFrame({
+            'Year': year,
+            'Variable': variable_name,
+            'Data': data
+        })
+        return df
+    else:
+        return pd.DataFrame()
+
+def upload_to_s3(df, year, variable_name):
+    csv_buffer = StringIO()
+    df.to_csv(csv_buffer, index=False)
+    s3_key = f'{PROCESSED_PREFIX}/{year}/{variable_name}_processed.csv'
+    s3_client.put_object(Bucket=BUCKET_NAME, Key=s3_key, Body=csv_buffer.getvalue())
+    print(f"Datos procesados subidos a {s3_key}")
+
+def process_year_folder(year, variable):
+    s3_prefix = f'crop_productivity_indicators/{year}/{variable}_year_{year}.zip'
+    temp_zip_path = download_and_extract_from_s3(s3_prefix)
     
-    try:
-        files = [f for f in os.listdir(temp_dir) if f.endswith('.nc')]
-        
+    if temp_zip_path:
+        files = [f for f in os.listdir('/tmp/') if f.endswith('.nc')]
         for file_name in files:
-            file_path = os.path.join(temp_dir, file_name)
+            file_path = os.path.join('/tmp/', file_name)
             print(f"Procesando {file_name}...")
             file_variables = list_netcdf_variables(file_path)
             
             for variable_name in file_variables:
-                data = read_netcdf_with_chunks(file_path, variable_name)
-                if len(data) > 0:
-                    year = file_name.split('_')[2]
-                    df = pd.DataFrame({
-                        'Year': year,
-                        'Variable': variable_name,
-                        'Data': data
-                    })
-                    data_list.append(df)
-                    
-        if data_list:
-            combined_df = pd.concat(data_list, ignore_index=True)
-            output_file = os.path.join(temp_dir, "processed_data.csv")
-            combined_df.to_csv(output_file, index=False)
-            print(f"Datos procesados guardados en {output_file}")
-            return combined_df
-        else:
-            print("No se generaron datos.")
-            return pd.DataFrame()
-    except Exception as e:
-        print(f"Error procesando los archivos NetCDF en {temp_dir}: {e}")
-        return pd.DataFrame()
-
-def process_year_folder(year, variable):
-    s3_prefix = f'crop_productivity_indicators/{year}/{variable}_year_{year}.zip'
-    
-    with tempfile.TemporaryDirectory() as temp_dir:
-        download_and_extract_from_s3(s3_prefix, temp_dir)
-        return process_netcdf_from_s3(temp_dir)
+                df = process_netcdf(file_path, year, variable_name)
+                if not df.empty:
+                    upload_to_s3(df, year, variable_name)
 
 if __name__ == '__main__':
     variables = {
