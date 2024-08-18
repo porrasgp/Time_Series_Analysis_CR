@@ -1,13 +1,16 @@
 import os
 import boto3
-import zipfile
 import tempfile
+import time
+import zipfile
 import xarray as xr
 import numpy as np
 from dotenv import load_dotenv
+import cdsapi
 
 # Cargar variables de entorno
-load_dotenv()
+if not os.getenv("GITHUB_ACTIONS"):
+    load_dotenv()
 
 AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
@@ -22,7 +25,32 @@ s3_client = boto3.client(
     region_name=AWS_REGION
 )
 
-def download_and_extract_from_s3(s3_prefix, extract_to='/tmp'):
+# Crear cliente CDS API
+client = cdsapi.Client()
+
+def wait_for_job_to_complete(client, request):
+    """Esperar hasta que el trabajo esté completo antes de intentar descargar."""
+    while True:
+        try:
+            client.retrieve(dataset, request)
+            break  # Salir del bucle si el trabajo está completo y listo para descargar
+        except Exception as e:
+            if "Result not ready, job is running" in str(e):
+                print("El trabajo aún está en curso, esperando 100 segundos antes de verificar nuevamente...")
+                time.sleep(100)  # Esperar 100 segundos antes de verificar nuevamente
+            else:
+                raise  # Lanzar cualquier otra excepción
+
+def upload_to_s3(temp_file_path, s3_client, bucket_name, s3_key):
+    """Subir archivo a S3."""
+    if os.path.getsize(temp_file_path) > 0:
+        s3_client.upload_file(temp_file_path, bucket_name, s3_key)
+        print(f"Archivo subido al bucket S3 {bucket_name} con la clave {s3_key}")
+    else:
+        print("El archivo temporal está vacío. No se recuperaron datos.")
+
+def download_and_extract_zip_from_s3(s3_prefix, extract_to='/tmp'):
+    """Descargar y extraer archivos ZIP desde S3."""
     objects = s3_client.list_objects_v2(Bucket=BUCKET_NAME, Prefix=s3_prefix)
     
     if 'Contents' in objects:
@@ -41,60 +69,63 @@ def download_and_extract_from_s3(s3_prefix, extract_to='/tmp'):
     else:
         print(f"No se encontraron objetos en {s3_prefix}")
 
-def process_netcdf_files(data_dir='/tmp'):
-    files = [os.path.join(data_dir, f) for f in os.listdir(data_dir) if f.endswith('.nc')]
-    print(f"Procesando archivos: {files}...")
-    
-    # Leer múltiples archivos NetCDF usando xarray sin dask
-    ds = xr.open_mfdataset(files, combine='by_coords', decode_times=True)
-    
-    # Decodificar todas las variables de tiempo automáticamente
-    ds = xr.decode_cf(ds)
-    print("La coordenada de tiempo se ha convertido a datetime64[ns].")
-    
-    return ds
+def read_netcdf_with_xarray(file_path):
+    """Leer archivos NetCDF con xarray."""
+    try:
+        ds = xr.open_dataset(file_path)
+        return ds
+    except FileNotFoundError:
+        print(f"Archivo {file_path} no encontrado.")
+        return None
 
-def print_dataset_summary(ds):
-    print("Resumen del Dataset Combinado:")
-    print(ds)
-    print("\nVariables disponibles:")
-    for var in ds.data_vars:
-        print(f"{var}:")
-        data = ds[var].values
-        print(f" - Shape: {data.shape}")
-        print(f" - Non-NaN Values: {np.count_nonzero(~np.isnan(data))}")
-        # Imprimir una muestra de los datos
-        print(f" - Sample Data:\n{data.flatten()[:10]}")
-
-def process_year_folder(year):
-    variables = [
-        "crop_development_stage",
-        "total_above_ground_production",
-        "total_weight_storage_organs"
-    ]
-    
+def process_files_for_year(year, variables):
+    """Descargar, extraer y procesar archivos NetCDF para un año específico."""
     for var in variables:
         s3_prefix = f'crop_productivity_indicators/{year}/{var}_year_{year}.zip'
-        download_and_extract_from_s3(s3_prefix)
-        
-        # Procesar los archivos NetCDF
-        ds = process_netcdf_files(data_dir='/tmp')
-        
-        # Imprimir el resumen del dataset combinado
-        if ds:
-            print_dataset_summary(ds)
-        
-        # Limpiar archivos temporales
-        for file in os.listdir('/tmp'):
-            file_path = os.path.join('/tmp', file)
-            if os.path.isfile(file_path):
-                os.remove(file_path)
+        download_and_extract_zip_from_s3(s3_prefix)
 
-# Variables y años
-years = ["2023"]
+def main():
+    variables = [
+        'crop_development_stage',
+        'total_above_ground_production',
+        'total_weight_storage_organs'
+    ]
+    years = ["2023"]
 
-# Procesar los datos para cada año
-for year in years:
-    process_year_folder(year)
+    # Procesar en lotes por año
+    for year in years:
+        process_files_for_year(year, variables)
 
-print("Procesamiento completado.")
+    # Verificar los archivos extraídos
+    extracted_files = os.listdir('/tmp')
+    print("Archivos extraídos en /tmp:")
+    print(extracted_files)
+
+    # Procesar y explorar los archivos NetCDF con xarray
+    for var in variables:
+        for year in years:
+            # Buscar archivos NetCDF específicos en el directorio temporal usando los nombres extraídos
+            file_prefix = f"Maize_{var}_C3S-glob-agric_{year}_1_{year}-"
+            matching_files = [f for f in extracted_files if f.startswith(file_prefix) and f.endswith('.nc')]
+
+            if matching_files:
+                for file in matching_files:
+                    full_path = os.path.join('/tmp', file)
+                    ds = read_netcdf_with_xarray(full_path)
+                    if ds is not None:
+                        print(f"Datos del archivo {file}:")
+                        print(ds)
+                        print("\nVariables disponibles:")
+                        for data_var in ds.data_vars:
+                            print(f"{data_var}:")
+                            print(f" - Dimensiones: {ds[data_var].dims}")
+                            print(f" - Shape: {ds[data_var].shape}")
+                            print(f" - Valores no nulos: {np.count_nonzero(~np.isnan(ds[data_var].values))}")
+                            print(f" - Datos de muestra:\n{ds[data_var].values.flatten()[:10]}")
+                    else:
+                        print(f"No se pudieron cargar los datos para '{var}' en {full_path}")
+            else:
+                print(f"Archivo para '{var}' en el año {year} no encontrado en /tmp")
+
+if __name__ == "__main__":
+    main()
