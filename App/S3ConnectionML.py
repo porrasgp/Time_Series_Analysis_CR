@@ -70,24 +70,32 @@ def download_and_extract_from_s3(s3_prefix, extract_to='/tmp'):
 
 # Función para listar variables disponibles en un archivo NetCDF
 def list_netcdf_variables(file_path):
-    with Dataset(file_path, 'r') as nc:
-        variables = list(nc.variables.keys())
-        print(f"Variables en {file_path}: {variables}")
+    try:
+        with Dataset(file_path, 'r') as nc:
+            variables = list(nc.variables.keys())
+            print(f"Variables en {file_path}: {variables}")
+    except RuntimeError as e:
+        print(f"Error al abrir el archivo NetCDF {file_path}: {e}")
+        variables = []
+    
     return variables
 
 # Función para leer datos de un archivo NetCDF
 def read_netcdf_data(file_path, variable_name):
     lat, lon, time, values = [], [], [], []
     
-    with Dataset(file_path, 'r') as nc:
-        if variable_name in nc.variables:
-            var_data = nc.variables[variable_name]
-            lat = nc.variables['lat'][:].flatten()
-            lon = nc.variables['lon'][:].flatten()
-            time = nc.variables['time'][:].flatten()
-            values = var_data[:].flatten()
-        else:
-            print(f"Advertencia: '{variable_name}' no encontrado en {file_path}")
+    try:
+        with Dataset(file_path, 'r') as nc:
+            if variable_name in nc.variables:
+                var_data = nc.variables[variable_name]
+                lat = nc.variables['lat'][:].flatten()
+                lon = nc.variables['lon'][:].flatten()
+                time = nc.variables['time'][:].flatten()
+                values = var_data[:].flatten()
+            else:
+                print(f"Advertencia: '{variable_name}' no encontrado en {file_path}")
+    except RuntimeError as e:
+        print(f"Error al abrir el archivo NetCDF {file_path}: {e}")
     
     return lat, lon, time, values
 
