@@ -6,7 +6,6 @@ import pandas as pd
 import numpy as np
 from netCDF4 import Dataset
 from dotenv import load_dotenv
-import time
 
 # Cargar variables de entorno
 load_dotenv()
@@ -25,7 +24,7 @@ s3_client = boto3.client(
 )
 
 # Función para descargar y extraer archivos ZIP desde S3
-def download_and_extract_from_s3(s3_prefix, extract_to='/tmp', timeout=10):
+def download_and_extract_from_s3(s3_prefix, extract_to='/tmp'):
     objects = s3_client.list_objects_v2(Bucket=BUCKET_NAME, Prefix=s3_prefix)
     
     if 'Contents' in objects:
@@ -41,7 +40,6 @@ def download_and_extract_from_s3(s3_prefix, extract_to='/tmp', timeout=10):
                     zip_ref.extractall(extract_to)
                 
                 print(f"Archivo {s3_key} descargado y extraído en {extract_to}")
-                time.sleep(timeout)  # Esperar para evitar problemas de límite de tasa
     else:
         print(f"No se encontraron objetos en {s3_prefix}")
 
@@ -70,10 +68,11 @@ def read_netcdf_with_chunks(file_path, variable_name, chunk_size=1000):
     else:
         return np.array([])  # Retorna un array vacío si no se encuentra la variable
 
-# Función para procesar todos los archivos NetCDF desde S3
+# Función para procesar archivos NetCDF y actualizar el DataFrame
 def process_netcdf_from_s3(data_dir='/tmp'):
-    files = [f for f in os.listdir(data_dir) if f.endswith('.nc')]
     data_list = []
+    
+    files = [f for f in os.listdir(data_dir) if f.endswith('.nc')]
     
     for file_name in files:
         file_path = os.path.join(data_dir, file_name)
@@ -81,35 +80,19 @@ def process_netcdf_from_s3(data_dir='/tmp'):
         file_variables = list_netcdf_variables(file_path)
         
         for variable_name in file_variables:
-            try:
-                data = read_netcdf_with_chunks(file_path, variable_name)
-                if len(data) > 0:
-                    year = file_name.split('_')[2]
-                    df = pd.DataFrame({
-                        'Year': year,
-                        'Variable': variable_name,
-                        'Data': data
-                    })
-                    data_list.append(df)
-            except Exception as e:
-                print(f"Error procesando {file_name} para la variable {variable_name}: {e}")
-    
-    # Verificar el contenido de data_list antes de concatenar
-    if data_list:
-        print("DataFrames en data_list antes de concatenar:")
-        for i, df in enumerate(data_list):
-            print(f"DataFrame {i} - Shape: {df.shape}")
-        
-        # Intentar concatenar DataFrames
-        try:
-            combined_df = pd.concat(data_list, ignore_index=True)
-            return combined_df
-        except Exception as e:
-            print(f"Error en concatenación de DataFrames: {e}")
-            return pd.DataFrame()  # Retorna un DataFrame vacío si falla la concatenación
-    else:
-        print("No se encontraron DataFrames para concatenar.")
-        return pd.DataFrame()  # Retorna un DataFrame vacío si no hay DataFrames
+            data = read_netcdf_with_chunks(file_path, variable_name)
+            if len(data) > 0:
+                year = file_name.split('_')[2]
+                df = pd.DataFrame({
+                    'Year': year,
+                    'Variable': variable_name,
+                    'Data': data
+                })
+                data_list.append(df)
+                
+    # Combinar todos los DataFrames en uno solo
+    combined_df = pd.concat(data_list, ignore_index=True)
+    return combined_df
 
 # Variables y años
 variables = {
