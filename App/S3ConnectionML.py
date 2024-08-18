@@ -35,7 +35,6 @@ def download_and_process_zip(s3_key):
             for file_name in zip_ref.namelist():
                 if file_name.endswith('.nc'):
                     with zip_ref.open(file_name) as file:
-                        # Procesar archivo NetCDF directamente
                         try:
                             ds = xr.open_dataset(file, engine='netcdf4')
                             for variable_name in ds.data_vars:
@@ -49,7 +48,7 @@ def download_and_process_zip(s3_key):
         return pd.concat(data_list, ignore_index=True) if data_list else pd.DataFrame()
 
     except Exception as e:
-        print(f"Error al descargar o procesar archivo: {e}")
+        print(f"Error al descargar o procesar archivo ZIP {s3_key}: {e}")
         return pd.DataFrame()
 
 # Función para procesar todos los archivos NetCDF desde S3
@@ -59,7 +58,8 @@ def process_netcdf_from_s3(variables, years):
         for year in years:
             s3_prefix = f'crop_productivity_indicators/{year}/{var}_year_{year}.zip'
             df = download_and_process_zip(s3_prefix)
-            all_data_df = pd.concat([all_data_df, df], ignore_index=True)
+            if not df.empty:
+                all_data_df = pd.concat([all_data_df, df], ignore_index=True)
     return all_data_df
 
 # Variables y años
@@ -74,7 +74,10 @@ years = ["2019", "2020", "2021", "2022", "2023"]
 data_df = process_netcdf_from_s3(variables, years)
 
 # Mostrar la descripción estadística de los datos
-print(data_df.describe())
+if not data_df.empty:
+    print(data_df.describe())
+else:
+    print("No se encontraron datos para procesar.")
 
 # Imprimir una vista previa de los datos
 print(data_df.head())
