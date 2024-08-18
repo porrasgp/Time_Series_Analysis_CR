@@ -32,6 +32,7 @@ def download_and_extract_from_s3(s3_prefix, temp_dir):
             s3_key = obj['Key']
             if s3_key.endswith('.zip'):
                 try:
+                    # Descargar el archivo ZIP
                     with tempfile.NamedTemporaryFile(delete=False) as temp_file:
                         s3_client.download_fileobj(BUCKET_NAME, s3_key, temp_file)
                         temp_file_path = temp_file.name
@@ -121,6 +122,7 @@ if __name__ == '__main__':
     }
     years = ["2019", "2020", "2021", "2022", "2023"]
 
+    # Procesar cada combinación de año y variable en paralelo
     with ThreadPoolExecutor(max_workers=2) as executor:
         futures = [executor.submit(process_year_folder, year, var) for year in years for var in variables.values()]
         for future in as_completed(futures):
