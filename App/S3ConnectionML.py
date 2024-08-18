@@ -24,7 +24,7 @@ s3_client = boto3.client(
     region_name=AWS_REGION
 )
 
-# Configurar el cliente dask si estás utilizando el entorno de Dask
+# Configurar el cliente dask
 client = Client()
 
 def download_and_extract_from_s3(s3_prefix, extract_to='/tmp'):
@@ -54,47 +54,4 @@ def process_netcdf_files(data_dir='/tmp'):
     ds = xr.open_mfdataset(files, combine='by_coords', chunks={'time': 10})
     return ds
 
-def print_dataset_summary(ds):
-    print("Resumen del Dataset Combinado:")
-    print(ds)
-    print("\nVariables disponibles:")
-    for var in ds.data_vars:
-        print(f"{var}:")
-        data = ds[var].values
-        print(f" - Shape: {data.shape}")
-        print(f" - Non-NaN Values: {np.count_nonzero(~np.isnan(data))}")
-        # Imprimir una muestra de los datos
-        print(f" - Sample Data:\n{data.flatten()[:10]}")
-
-def process_year_folder(year):
-    variables = [
-        "crop_development_stage",
-        "total_above_ground_production",
-        "total_weight_storage_organs"
-    ]
-    
-    for var in variables:
-        s3_prefix = f'crop_productivity_indicators/{year}/{var}_year_{year}.zip'
-        download_and_extract_from_s3(s3_prefix)
-        
-        # Procesar los archivos NetCDF
-        ds = process_netcdf_files(data_dir='/tmp')
-        
-        # Imprimir el resumen del dataset combinado
-        if ds:
-            print_dataset_summary(ds)
-        
-        # Limpiar archivos temporales
-        for file in os.listdir('/tmp'):
-            file_path = os.path.join('/tmp', file)
-            if os.path.isfile(file_path):
-                os.remove(file_path)
-
-# Variables y años
-years = ["2023"]
-
-# Procesar los datos para cada año
-for year in years:
-    process_year_folder(year)
-
-print("Procesamiento completado.")
+def print
