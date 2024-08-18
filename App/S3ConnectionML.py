@@ -1,10 +1,9 @@
+import boto3
 import os
 import tempfile
 import zipfile
 import pandas as pd
-import numpy as np
 import xarray as xr
-from netCDF4 import Dataset
 from dotenv import load_dotenv
 
 # Cargar variables de entorno
@@ -17,7 +16,6 @@ AWS_REGION = "us-east-1"
 BUCKET_NAME = "maize-climate-data-store"
 
 # Crear cliente S3
-import boto3
 s3_client = boto3.client(
     's3',
     aws_access_key_id=AWS_ACCESS_KEY_ID,
@@ -51,12 +49,16 @@ def extract_and_load_nc_data_by_chunks(file_path, variable_name):
         print(f"Archivo {file_path} no encontrado.")
         return None
 
-    ds = xr.open_dataset(file_path)
-    if variable_name in ds.variables:
-        data = ds[variable_name].values.flatten()
-        return data
-    else:
-        print(f"Advertencia: '{variable_name}' no encontrado en {file_path}")
+    try:
+        ds = xr.open_dataset(file_path)
+        if variable_name in ds.variables:
+            data = ds[variable_name].values.flatten()
+            return data
+        else:
+            print(f"Advertencia: '{variable_name}' no encontrado en {file_path}")
+            return None
+    except Exception as e:
+        print(f"Error al leer el archivo {file_path}: {e}")
         return None
 
 def process_year_data(year):
@@ -78,13 +80,20 @@ def process_year_data(year):
     for key, zip_file in zip_files.items():
         download_and_extract_zip_from_s3(zip_file)
     
+    # Verificar los archivos extraídos
+    extracted_files = os.listdir(base_directory)
+    print("Archivos extraídos en /tmp:")
+    print(extracted_files)
+    
     # Cargar los datos de los tres ZIPs
     data = {}
     for key, var_name in variables.items():
-        zip_file_name = [f for f in os.listdir(base_directory) if f.startswith(f"Maize_{var_name}_C3S-glob-agric_{year}_1_{year}-") and f.endswith('.nc')]
+        zip_file_name = [f for f in extracted_files if f.startswith(f"Maize_{var_name}_C3S-glob-agric_{year}_1_{year}-") and f.endswith('.nc')]
         if zip_file_name:
             file_path = os.path.join(base_directory, zip_file_name[0])
             data[key] = extract_and_load_nc_data_by_chunks(file_path, var_name)
+        else:
+            print(f"Archivo para '{key}' no encontrado en /tmp")
     
     # Verificar y combinar los datos
     if all(key in data for key in variables.keys()):
@@ -95,14 +104,25 @@ def process_year_data(year):
         })
         print(f"Datos combinados para el año {year}:")
         print(combined_data.head())
+        return combined_data
     else:
         print(f"Datos incompletos para el año {year}.")
+        return pd.DataFrame()
 
 def main():
-    years = ["2023"]
-    
+    years = ["2019", "2020", "2021", "2022", "2023"]
+    all_year_data = {}
+
+    # Procesar en lotes por año
     for year in years:
-        process_year_data(year)
+        year_data = process_year_data(year)
+        if not year_data.empty:
+            all_year_data[year] = year_data
+    
+    # Combinar datos de todos los años en un solo DataFrame
+    combined_all_years_data = pd.concat(all_year_data.values(), keys=all_year_data.keys(), names=['Year', 'Index'])
+    print("Datos combinados de todos los años:")
+    print(combined_all_years_data.head())
 
 if __name__ == "__main__":
     main()
