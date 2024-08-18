@@ -3,6 +3,7 @@ import boto3
 import zipfile
 import tempfile
 import pandas as pd
+import numpy as np
 from netCDF4 import Dataset
 from dotenv import load_dotenv
 
