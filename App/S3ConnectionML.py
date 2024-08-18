@@ -1,9 +1,9 @@
-import boto3
 import os
+import boto3
 import tempfile
 import zipfile
-import pandas as pd
 import xarray as xr
+import numpy as np
 from dotenv import load_dotenv
 
 # Cargar variables de entorno
@@ -43,86 +43,51 @@ def download_and_extract_zip_from_s3(s3_prefix, extract_to='/tmp'):
     else:
         print(f"No se encontraron objetos en {s3_prefix}")
 
-def extract_and_load_nc_data_by_chunks(file_path, variable_name):
-    """Leer archivos NetCDF y extraer datos específicos usando xarray."""
-    if not os.path.exists(file_path):
-        print(f"Archivo {file_path} no encontrado.")
-        return None
+def extract_and_load_nc_data_by_chunks(zip_file_path, variable_name):
+    """Cargar los datos de archivos NetCDF desde un archivo ZIP en fragmentos."""
+    extracted_files = []
+    
+    with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
+        for file_name in zip_ref.namelist():
+            if file_name.endswith('.nc'):
+                extracted_files.append(file_name)
+                zip_ref.extract(file_name, '/tmp')
 
-    try:
-        ds = xr.open_dataset(file_path)
-        if variable_name in ds.variables:
-            data = ds[variable_name].values.flatten()
-            return data
-        else:
-            print(f"Advertencia: '{variable_name}' no encontrado en {file_path}")
-            return None
-    except Exception as e:
-        print(f"Error al leer el archivo {file_path}: {e}")
-        return None
-
-def process_year_data(year):
-    """Procesar y combinar datos para un año específico."""
-    variables = {
-        "crop_development_stage": "DVS",
-        "total_above_ground_production": "TAGP",
-        "total_weight_storage_organs": "TWSO"
-    }
+    # Procesar archivos NetCDF en fragmentos
+    data = []
+    for file_name in extracted_files:
+        file_path = os.path.join('/tmp', file_name)
+        try:
+            ds = xr.open_dataset(file_path)
+            data.append(ds)
+            print(f"Datos del archivo {file_name} ({variable_name}):")
+            print(ds)
+            print("\nVariables disponibles:")
+            for data_var in ds.data_vars:
+                print(f"{data_var}:")
+                print(f" - Dimensiones: {ds[data_var].dims}")
+                print(f" - Shape: {ds[data_var].shape}")
+                print(f" - Valores no nulos: {np.count_nonzero(~np.isnan(ds[data_var].values))}")
+                print(f" - Datos de muestra:\n{ds[data_var].values.flatten()[:10]}")
+        except FileNotFoundError:
+            print(f"Archivo {file_path} no encontrado.")
     
-    base_directory = '/tmp'
-    zip_files = {
-        "crop_development_stage": f"crop_productivity_indicators/{year}/crop_development_stage_year_{year}.zip",
-        "total_above_ground_production": f"crop_productivity_indicators/{year}/total_above_ground_production_year_{year}.zip",
-        "total_weight_storage_organs": f"crop_productivity_indicators/{year}/total_weight_storage_organs_year_{year}.zip"
-    }
-    
-    # Descargar y extraer los tres archivos ZIP
-    for key, zip_file in zip_files.items():
-        download_and_extract_zip_from_s3(zip_file)
-    
-    # Verificar los archivos extraídos
-    extracted_files = os.listdir(base_directory)
-    print("Archivos extraídos en /tmp:")
-    print(extracted_files)
-    
-    # Cargar los datos de los tres ZIPs
-    data = {}
-    for key, var_name in variables.items():
-        zip_file_name = [f for f in extracted_files if f.startswith(f"Maize_{var_name}_C3S-glob-agric_{year}_1_{year}-") and f.endswith('.nc')]
-        if zip_file_name:
-            file_path = os.path.join(base_directory, zip_file_name[0])
-            data[key] = extract_and_load_nc_data_by_chunks(file_path, var_name)
-        else:
-            print(f"Archivo para '{key}' no encontrado en /tmp")
-    
-    # Verificar y combinar los datos
-    if all(key in data for key in variables.keys()):
-        combined_data = pd.DataFrame({
-            "crop_development_stage": data["crop_development_stage"],
-            "total_above_ground_production": data["total_above_ground_production"],
-            "total_weight_storage_organs": data["total_weight_storage_organs"]
-        })
-        print(f"Datos combinados para el año {year}:")
-        print(combined_data.head())
-        return combined_data
-    else:
-        print(f"Datos incompletos para el año {year}.")
-        return pd.DataFrame()
+    return data
 
 def main():
-    years = ["2019", "2020", "2021", "2022", "2023"]
-    all_year_data = {}
+    # Ajustar las rutas y nombres de archivo según corresponda
+    base_directory = '/tmp'
+    zip_files = {
+        "Crop Development stage": "crop_development_stage_year_2023.zip",
+        "Total Above ground production": "total_above_ground_production_year_2023.zip",
+        "Total weight storage organs": "total_weight_storage_organs_year_2023.zip"
+    }
 
-    # Procesar en lotes por año
-    for year in years:
-        year_data = process_year_data(year)
-        if not year_data.empty:
-            all_year_data[year] = year_data
-    
-    # Combinar datos de todos los años en un solo DataFrame
-    combined_all_years_data = pd.concat(all_year_data.values(), keys=all_year_data.keys(), names=['Year', 'Index'])
-    print("Datos combinados de todos los años:")
-    print(combined_all_years_data.head())
+    # Descargar y procesar archivos ZIP
+    for var_name, zip_file in zip_files.items():
+        zip_file_path = os.path.join(base_directory, zip_file)
+        download_and_extract_zip_from_s3(f'crop_productivity_indicators/2023/{zip_file}', base_directory)
+        data = extract_and_load_nc_data_by_chunks(zip_file_path, var_name)
 
 if __name__ == "__main__":
     main()
