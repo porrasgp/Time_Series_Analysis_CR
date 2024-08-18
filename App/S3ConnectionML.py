@@ -43,6 +43,13 @@ def download_and_extract_from_s3(s3_prefix, extract_to='/tmp'):
     else:
         print(f"No se encontraron objetos en {s3_prefix}")
 
+# Función para listar variables disponibles en un archivo NetCDF
+def list_netcdf_variables(file_path):
+    with Dataset(file_path, 'r') as nc:
+        variables = list(nc.variables.keys())
+        print(f"Variables en {file_path}: {variables}")
+    return variables
+
 # Función para leer archivos NetCDF y cargar datos específicos por chunks
 def read_netcdf_with_chunks(file_path, variable_name, chunk_size=1000):
     data = []
@@ -62,24 +69,29 @@ def read_netcdf_with_chunks(file_path, variable_name, chunk_size=1000):
         return np.array([])  # Retorna un array vacío si no se encuentra la variable
 
 # Función para procesar todos los archivos NetCDF desde S3
-def process_netcdf_from_s3(data_dir='/tmp', variable_name='CO2'):
+def process_netcdf_from_s3(data_dir='/tmp', variables=['CO2']):
     files = [f for f in os.listdir(data_dir) if f.endswith('.nc')]
     data_list = []
     
     for file_name in files:
         file_path = os.path.join(data_dir, file_name)
         print(f"Procesando {file_name}...")
-        data = read_netcdf_with_chunks(file_path, variable_name)
+        file_variables = list_netcdf_variables(file_path)
         
-        if len(data) > 0:
-            # Suponiendo que el nombre del archivo contiene el año
-            year = file_name.split('_')[2]
-            df = pd.DataFrame({
-                'Year': year,
-                'Data': data
-            })
-            data_list.append(df)
-            
+        for variable_name in variables:
+            if variable_name in file_variables:
+                data = read_netcdf_with_chunks(file_path, variable_name)
+                if len(data) > 0:
+                    year = file_name.split('_')[2]
+                    df = pd.DataFrame({
+                        'Year': year,
+                        'Variable': variable_name,
+                        'Data': data
+                    })
+                    data_list.append(df)
+            else:
+                print(f"Variable '{variable_name}' no encontrada en {file_name}")
+                
     # Combinar todos los DataFrames en uno solo
     combined_df = pd.concat(data_list, ignore_index=True)
     return combined_df
@@ -99,8 +111,8 @@ for var in variables.values():
         download_and_extract_from_s3(s3_prefix)
 
 # Procesar los archivos NetCDF y organizar los datos
-variable_name = 'CO2'  # Ajusta según la variable que quieras leer
-data_df = process_netcdf_from_s3(variable_name=variable_name)
+variable_names = list(variables.values())  # Lista de variables a procesar
+data_df = process_netcdf_from_s3(variable_names=variable_names)
 
 # Mostrar la descripción estadística de los datos
 print(data_df.describe())
