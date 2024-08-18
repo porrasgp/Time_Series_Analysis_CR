@@ -102,7 +102,7 @@ def process_netcdf_from_s3(data_dir='/tmp'):
                         df = pd.DataFrame({
                             'Year': year,
                             'Variable': variable_name,
-                            'Data': list(data)  # Convertir array a lista para DataFrame
+                            'Data': data
                         })
                         data_list.append(df)
                     else:
@@ -134,10 +134,7 @@ for var in variables.values():
 data_df = process_netcdf_from_s3()
 
 # Mostrar la descripción estadística de los datos
-if not data_df.empty:
-    print(data_df.describe())
-else:
-    print("El DataFrame está vacío.")
+print(data_df.describe())
 
 # Imprimir una vista previa de los datos
 print(data_df.head())
