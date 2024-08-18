@@ -25,56 +25,45 @@ s3_client = boto3.client(
 )
 
 # Función para descargar y extraer archivos ZIP desde S3
-def download_and_extract_from_s3(s3_prefix, extract_to='/tmp'):
-    try:
-        objects = s3_client.list_objects_v2(Bucket=BUCKET_NAME, Prefix=s3_prefix)
-        
-        if 'Contents' in objects:
-            for obj in objects['Contents']:
-                s3_key = obj['Key']
-                if s3_key.endswith('.zip'):
-                    with tempfile.NamedTemporaryFile(delete=False) as temp_file:
-                        s3_client.download_fileobj(BUCKET_NAME, s3_key, temp_file)
-                        temp_file_path = temp_file.name
-                    
-                    # Extraer el archivo ZIP
-                    with zipfile.ZipFile(temp_file_path, 'r') as zip_ref:
-                        zip_ref.extractall(extract_to)
-                    
-                    print(f"Archivo {s3_key} descargado y extraído en {extract_to}")
-                    os.remove(temp_file_path)  # Eliminar archivo temporal después de extraer
-                    time.sleep(2)  # Tiempo de espera entre descargas para evitar sobrecarga
-        else:
-            print(f"No se encontraron objetos en {s3_prefix}")
-    except Exception as e:
-        print(f"Error en download_and_extract_from_s3: {e}")
+def download_and_extract_from_s3(s3_prefix, extract_to='/tmp', timeout=10):
+    objects = s3_client.list_objects_v2(Bucket=BUCKET_NAME, Prefix=s3_prefix)
+    
+    if 'Contents' in objects:
+        for obj in objects['Contents']:
+            s3_key = obj['Key']
+            if s3_key.endswith('.zip'):
+                with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+                    s3_client.download_fileobj(BUCKET_NAME, s3_key, temp_file)
+                    temp_file_path = temp_file.name
+                
+                # Extraer el archivo ZIP
+                with zipfile.ZipFile(temp_file_path, 'r') as zip_ref:
+                    zip_ref.extractall(extract_to)
+                
+                print(f"Archivo {s3_key} descargado y extraído en {extract_to}")
+                time.sleep(timeout)  # Esperar para evitar problemas de límite de tasa
+    else:
+        print(f"No se encontraron objetos en {s3_prefix}")
 
 # Función para listar variables disponibles en un archivo NetCDF
 def list_netcdf_variables(file_path):
-    try:
-        with Dataset(file_path, 'r') as nc:
-            variables = list(nc.variables.keys())
-            print(f"Variables en {file_path}: {variables}")
-        return variables
-    except Exception as e:
-        print(f"Error en list_netcdf_variables: {e}")
-        return []
+    with Dataset(file_path, 'r') as nc:
+        variables = list(nc.variables.keys())
+        print(f"Variables en {file_path}: {variables}")
+    return variables
 
 # Función para leer archivos NetCDF y cargar datos específicos por chunks
 def read_netcdf_with_chunks(file_path, variable_name, chunk_size=1000):
     data = []
     
-    try:
-        with Dataset(file_path, 'r') as nc:
-            if variable_name in nc.variables:
-                var_data = nc.variables[variable_name]
-                for i in range(0, var_data.shape[0], chunk_size):
-                    chunk = var_data[i:i+chunk_size].flatten()
-                    data.append(chunk)
-            else:
-                print(f"Advertencia: '{variable_name}' no encontrado en {file_path}")
-    except Exception as e:
-        print(f"Error en read_netcdf_with_chunks: {e}")
+    with Dataset(file_path, 'r') as nc:
+        if variable_name in nc.variables:
+            var_data = nc.variables[variable_name]
+            for i in range(0, var_data.shape[0], chunk_size):
+                chunk = var_data[i:i+chunk_size].flatten()
+                data.append(chunk)
+        else:
+            print(f"Advertencia: '{variable_name}' no encontrado en {file_path}")
     
     if len(data) > 0:
         return np.concatenate(data)
@@ -92,22 +81,35 @@ def process_netcdf_from_s3(data_dir='/tmp'):
         file_variables = list_netcdf_variables(file_path)
         
         for variable_name in file_variables:
-            data = read_netcdf_with_chunks(file_path, variable_name)
-            if len(data) > 0:
-                year = file_name.split('_')[2]
-                df = pd.DataFrame({
-                    'Year': year,
-                    'Variable': variable_name,
-                    'Data': data
-                })
-                data_list.append(df)
-                
-    # Combinar todos los DataFrames en uno solo
+            try:
+                data = read_netcdf_with_chunks(file_path, variable_name)
+                if len(data) > 0:
+                    year = file_name.split('_')[2]
+                    df = pd.DataFrame({
+                        'Year': year,
+                        'Variable': variable_name,
+                        'Data': data
+                    })
+                    data_list.append(df)
+            except Exception as e:
+                print(f"Error procesando {file_name} para la variable {variable_name}: {e}")
+    
+    # Verificar el contenido de data_list antes de concatenar
     if data_list:
-        combined_df = pd.concat(data_list, ignore_index=True)
-        return combined_df
+        print("DataFrames en data_list antes de concatenar:")
+        for i, df in enumerate(data_list):
+            print(f"DataFrame {i} - Shape: {df.shape}")
+        
+        # Intentar concatenar DataFrames
+        try:
+            combined_df = pd.concat(data_list, ignore_index=True)
+            return combined_df
+        except Exception as e:
+            print(f"Error en concatenación de DataFrames: {e}")
+            return pd.DataFrame()  # Retorna un DataFrame vacío si falla la concatenación
     else:
-        return pd.DataFrame()  # Retorna un DataFrame vacío si no se encuentra ningún dato
+        print("No se encontraron DataFrames para concatenar.")
+        return pd.DataFrame()  # Retorna un DataFrame vacío si no hay DataFrames
 
 # Variables y años
 variables = {
@@ -126,14 +128,8 @@ for var in variables.values():
 # Procesar los archivos NetCDF y organizar los datos
 data_df = process_netcdf_from_s3()
 
-# Mostrar la descripción estadística de los datos si hay datos disponibles
-if not data_df.empty:
-    print(data_df.describe())
-else:
-    print("No se encontraron datos para mostrar.")
+# Mostrar la descripción estadística de los datos
+print(data_df.describe())
 
-# Imprimir una vista previa de los datos si hay datos disponibles
-if not data_df.empty:
-    print(data_df.head())
-else:
-    print("No se encontraron datos para mostrar.")
+# Imprimir una vista previa de los datos
+print(data_df.head())
