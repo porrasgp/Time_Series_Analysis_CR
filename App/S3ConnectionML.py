@@ -1,4 +1,5 @@
 import os
+import threading
 import boto3
 import zipfile
 import tempfile
@@ -137,11 +138,23 @@ def process_year_folder(year):
             if os.path.isfile(file_path):
                 os.remove(file_path)
                 
+def worker(year):
+    print(f"Inicio del procesamiento para el año {year}")
+    process_year_folder(year)
+    print(f"Fin del procesamiento para el año {year}")
+
 # Variables y años
 years = ["2019", "2020", "2021", "2022", "2023"]
 
-# Procesar los datos para cada año
+# Crear y lanzar los hilos
+threads = []
 for year in years:
-    process_year_folder(year)
+    thread = threading.Thread(target=worker, args=(year,))
+    threads.append(thread)
+    thread.start()
+
+# Esperar a que todos los hilos terminen
+for thread in threads:
+    thread.join()
 
 print("Procesamiento completado.")
