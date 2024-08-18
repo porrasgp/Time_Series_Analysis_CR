@@ -41,27 +41,44 @@ def download_and_extract_from_s3(s3_prefix, extract_to='/tmp'):
     else:
         print(f"No se encontraron objetos en {s3_prefix}")
 
+def check_netcdf_content(file_path):
+    with xr.open_dataset(file_path) as ds:
+        print(f"Variables en {file_path}:")
+        for var in ds.data_vars:
+            data = ds[var].values
+            print(f"{var}:")
+            print(f" - Shape: {data.shape}")
+            print(f" - Non-NaN Values: {np.count_nonzero(~np.isnan(data))}")
+            print(f" - Sample Data:\n{data.flatten()[:10]}")  # Imprime una muestra de los datos
+
 def process_netcdf_files(data_dir='/tmp'):
     datasets = []
-    
     files = [f for f in os.listdir(data_dir) if f.endswith('.nc')]
     
     for file_name in files:
         file_path = os.path.join(data_dir, file_name)
         print(f"Procesando {file_name}...")
-        
-        # Leer el archivo NetCDF usando xarray
+        check_netcdf_content(file_path)  # Verifica el contenido del archivo NetCDF
         ds = xr.open_dataset(file_path)
         datasets.append(ds)
-        
+    
     return datasets
 
 def merge_datasets(datasets):
-    # Concatenar todos los datasets en un solo dataset
+    if not datasets:
+        print("No hay datasets para combinar.")
+        return None
+    
     combined_ds = xr.concat(datasets, dim='time')
+    print("Dataset combinado:")
+    print(combined_ds)
     return combined_ds
 
 def print_dataset_summary(ds):
+    if ds is None:
+        print("Dataset vacío.")
+        return
+    
     print("Resumen del Dataset Combinado:")
     print(ds)
     print("\nVariables disponibles:")
@@ -70,7 +87,6 @@ def print_dataset_summary(ds):
         data = ds[var].values
         print(f" - Shape: {data.shape}")
         print(f" - Non-NaN Values: {np.count_nonzero(~np.isnan(data))}")
-        # Imprimir una muestra de los datos
         print(f" - Sample Data:\n{data.flatten()[:10]}")
 
 def upload_to_s3(ds, s3_prefix):
@@ -115,7 +131,7 @@ def process_year_folder(year):
                 os.remove(file_path)
 
 # Variables y años
-years = ["2019"]
+years = ["2023"]
 
 # Procesar los datos para cada año
 for year in years:
