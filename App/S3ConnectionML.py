@@ -60,7 +60,7 @@ def list_netcdf_variables(file_path):
         return []
 
 # Función para leer archivos NetCDF y cargar datos específicos por chunks
-def read_netcdf_with_chunks(file_path, variable_name, chunk_size=100):
+def read_netcdf_with_chunks(file_path, variable_name, chunk_size=200):
     try:
         data = []
         with Dataset(file_path, 'r') as nc:
