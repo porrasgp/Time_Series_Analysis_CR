@@ -36,7 +36,8 @@ def download_and_process_zip(s3_key):
                 if file_name.endswith('.nc'):
                     with zip_ref.open(file_name) as file:
                         try:
-                            ds = xr.open_dataset(file, engine='netcdf4')
+                            # Leer archivo NetCDF en memoria usando xarray
+                            ds = xr.open_dataset(io.BytesIO(file.read()), engine='netcdf4')
                             for variable_name in ds.data_vars:
                                 data = ds[variable_name].to_dataframe().reset_index()
                                 data['Variable'] = variable_name
