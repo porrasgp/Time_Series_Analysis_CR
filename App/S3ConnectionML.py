@@ -3,10 +3,8 @@ import boto3
 import zipfile
 import tempfile
 import pandas as pd
-import numpy as np
 from netCDF4 import Dataset
 from dotenv import load_dotenv
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Cargar variables de entorno
 load_dotenv()
@@ -122,13 +120,8 @@ if __name__ == '__main__':
     }
     years = ["2019", "2020", "2021", "2022", "2023"]
 
-    # Procesar cada combinación de año y variable en paralelo
-    with ThreadPoolExecutor(max_workers=2) as executor:
-        futures = [executor.submit(process_year_folder, year, var) for year in years for var in variables.values()]
-        for future in as_completed(futures):
-            try:
-                future.result()  # Obtener el resultado para manejar cualquier excepción
-            except Exception as e:
-                print(f"Error al procesar una carpeta: {e}")
+    for year in years:
+        for var in variables.values():
+            process_year_folder(year, var)
 
     print("Procesamiento completado.")
