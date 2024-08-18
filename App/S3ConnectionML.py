@@ -61,6 +61,13 @@ def merge_datasets(datasets):
     combined_ds = xr.concat(datasets, dim='time')
     return combined_ds
 
+def print_dataset_summary(ds):
+    print("Resumen del Dataset Combinado:")
+    print(ds)
+    print("\nVariables disponibles:")
+    for var in ds.data_vars:
+        print(f"{var}: {ds[var].values}")
+
 def upload_to_s3(ds, s3_prefix):
     # Guardar el dataset combinado en un archivo NetCDF temporal
     with tempfile.NamedTemporaryFile(delete=False, suffix='.nc') as temp_file:
@@ -88,8 +95,11 @@ def process_year_folder(year):
         # Combinar los datasets
         combined_ds = merge_datasets(datasets)
         
-        # Subir el dataset combinado a S3
+        # Imprimir el resumen del dataset combinado
         if combined_ds:
+            print_dataset_summary(combined_ds)
+            
+            # Subir el dataset combinado a S3
             s3_upload_prefix = f'processed_data/{year}/{var}_processed.nc'
             upload_to_s3(combined_ds, s3_upload_prefix)
         
