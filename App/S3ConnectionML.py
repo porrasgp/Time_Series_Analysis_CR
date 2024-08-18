@@ -66,7 +66,12 @@ def print_dataset_summary(ds):
     print(ds)
     print("\nVariables disponibles:")
     for var in ds.data_vars:
-        print(f"{var}: {ds[var].values}")
+        print(f"{var}:")
+        data = ds[var].values
+        print(f" - Shape: {data.shape}")
+        print(f" - Non-NaN Values: {np.count_nonzero(~np.isnan(data))}")
+        # Imprimir una muestra de los datos
+        print(f" - Sample Data:\n{data.flatten()[:10]}")
 
 def upload_to_s3(ds, s3_prefix):
     # Guardar el dataset combinado en un archivo NetCDF temporal
@@ -108,7 +113,7 @@ def process_year_folder(year):
             file_path = os.path.join('/tmp', file)
             if os.path.isfile(file_path):
                 os.remove(file_path)
-                
+
 # Variables y años
 years = ["2019"]
 
