@@ -6,6 +6,8 @@ import pandas as pd
 import numpy as np
 from netCDF4 import Dataset
 from dotenv import load_dotenv
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Cargar variables de entorno
 load_dotenv()
@@ -40,6 +42,7 @@ def download_and_extract_from_s3(s3_prefix, extract_to='/tmp'):
                     zip_ref.extractall(extract_to)
                 
                 print(f"Archivo {s3_key} descargado y extraído en {extract_to}")
+                time.sleep(1)  # Agregar tiempo de espera
     else:
         print(f"No se encontraron objetos en {s3_prefix}")
 
@@ -51,7 +54,7 @@ def list_netcdf_variables(file_path):
     return variables
 
 # Función para leer archivos NetCDF y cargar datos específicos por chunks
-def read_netcdf_with_chunks(file_path, variable_name, chunk_size=100):
+def read_netcdf_with_chunks(file_path, variable_name, chunk_size=500):
     data = []
     
     with Dataset(file_path, 'r') as nc:
@@ -68,31 +71,38 @@ def read_netcdf_with_chunks(file_path, variable_name, chunk_size=100):
     else:
         return np.array([])  # Retorna un array vacío si no se encuentra la variable
 
-# Función para procesar archivos NetCDF y actualizar el DataFrame
-def process_netcdf_from_s3(data_dir='/tmp'):
+# Función para procesar un archivo NetCDF y actualizar el DataFrame
+def process_netcdf_file(file_path):
     data_list = []
     
-    files = [f for f in os.listdir(data_dir) if f.endswith('.nc')]
+    file_variables = list_netcdf_variables(file_path)
     
-    for file_name in files:
-        file_path = os.path.join(data_dir, file_name)
-        print(f"Procesando {file_name}...")
-        file_variables = list_netcdf_variables(file_path)
+    for variable_name in file_variables:
+        data = read_netcdf_with_chunks(file_path, variable_name)
+        if len(data) > 0:
+            year = file_path.split('_')[2]
+            df = pd.DataFrame({
+                'Year': year,
+                'Variable': variable_name,
+                'Data': data
+            })
+            data_list.append(df)
+    
+    return pd.concat(data_list, ignore_index=True) if data_list else pd.DataFrame()
+
+# Función para procesar todos los archivos NetCDF desde S3
+def process_netcdf_from_s3(data_dir='/tmp'):
+    files = [f for f in os.listdir(data_dir) if f.endswith('.nc')]
+    data_df = pd.DataFrame()
+    
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        futures = [executor.submit(process_netcdf_file, os.path.join(data_dir, file_name)) for file_name in files]
         
-        for variable_name in file_variables:
-            data = read_netcdf_with_chunks(file_path, variable_name)
-            if len(data) > 0:
-                year = file_name.split('_')[2]
-                df = pd.DataFrame({
-                    'Year': year,
-                    'Variable': variable_name,
-                    'Data': data
-                })
-                data_list.append(df)
-                
-    # Combinar todos los DataFrames en uno solo
-    combined_df = pd.concat(data_list, ignore_index=True)
-    return combined_df
+        for future in as_completed(futures):
+            result_df = future.result()
+            data_df = pd.concat([data_df, result_df], ignore_index=True)
+    
+    return data_df
 
 # Variables y años
 variables = {
