@@ -70,26 +70,21 @@ def download_and_extract_zip_from_s3(s3_prefix, extract_to='/tmp'):
     else:
         print(f"No se encontraron objetos en {s3_prefix}")
 
-def read_netcdf_with_chunks(file_path, variable_name, chunk_size=1000):
-    """Leer archivos NetCDF en chunks y extraer datos específicos."""
+def read_netcdf(file_path, variable_name):
+    """Leer archivos NetCDF y extraer datos específicos."""
     data = []
     
     try:
         with Dataset(file_path, 'r') as nc:
             if variable_name in nc.variables:
-                var_data = nc.variables[variable_name]
-                for i in range(0, var_data.shape[0], chunk_size):
-                    chunk = var_data[i:i+chunk_size].flatten()
-                    data.append(chunk)
+                var_data = nc.variables[variable_name][:]
+                data = var_data.flatten()
             else:
                 print(f"Advertencia: '{variable_name}' no encontrado en {file_path}")
     except FileNotFoundError:
         print(f"Archivo {file_path} no encontrado.")
     
-    if len(data) > 0:
-        return np.concatenate(data)
-    else:
-        return np.array([])  # Retornar un array vacío si no se encuentra la variable
+    return np.array(data)  # Retornar los datos leídos
 
 def process_files_for_year(year, variables):
     """Descargar, extraer y procesar archivos NetCDF para un año específico."""
@@ -114,19 +109,19 @@ def main():
     print("Archivos extraídos en /tmp:")
     print(extracted_files)
 
-    # Procesar los datos y cargar en un DataFrame
+    # Crear un DataFrame para almacenar los datos
     all_data = pd.DataFrame()
 
     for var in variables:
         for year in years:
-            file_name = f"Maize_{var}_C3S-glob-agric_{year}_1_{year}-*.nc"
-            file_path = os.path.join('/tmp', file_name)
-            
-            matching_files = [f for f in os.listdir('/tmp') if f.startswith(file_name.split('*')[0]) and f.endswith('.nc')]
+            # Buscar archivos NetCDF específicos en el directorio temporal
+            file_prefix = f"Maize_{var}_C3S-glob-agric_{year}_1_{year}-"
+            matching_files = [f for f in os.listdir('/tmp') if f.startswith(file_prefix) and f.endswith('.nc')]
+
             if matching_files:
                 for file in matching_files:
                     full_path = os.path.join('/tmp', file)
-                    var_data = read_netcdf_with_chunks(full_path, var)
+                    var_data = read_netcdf(full_path, var)
                     if var_data.size > 0:
                         if var not in all_data:
                             all_data[var] = var_data
@@ -135,7 +130,7 @@ def main():
                     else:
                         print(f"No se encontraron datos para '{var}' en {full_path}")
             else:
-                print(f"Archivo {file_name} no encontrado en /tmp")
+                print(f"Archivo para '{var}' en el año {year} no encontrado en /tmp")
 
     # Verificar si los datos se han cargado correctamente
     if all_data.empty:
