@@ -1,57 +1,95 @@
-import boto3
-import xarray as xr
-import zipfile
 import os
+import boto3
+import zipfile
 import tempfile
-from pathlib import Path
+import xarray as xr
+import numpy as np
+from dotenv import load_dotenv
 
-def process_netcdf_files(input_bucket, output_bucket, years):
-    s3_client = boto3.client('s3')
+# Cargar variables de entorno
+load_dotenv()
 
-    for year in years:
-        year_path = f"crop_productivity_indicators/{year}/"
-        processed_path = f"processed_data/{year}/"
+AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
+AWS_REGION = "us-east-1"
+BUCKET_NAME = "maize-climate-data-store"
 
-        # List files in the S3 bucket for the given year
-        response = s3_client.list_objects_v2(Bucket=input_bucket, Prefix=year_path)
-        files = [obj['Key'] for obj in response.get('Contents', []) if obj['Key'].endswith('.zip')]
+# Crear cliente S3
+s3_client = boto3.client(
+    's3',
+    aws_access_key_id=AWS_ACCESS_KEY_ID,
+    aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+    region_name=AWS_REGION
+)
 
-        # Process each file
-        for file_key in files:
-            print(f"Processing {file_key}...")
-            with tempfile.TemporaryDirectory() as tmpdir:
-                local_zip = os.path.join(tmpdir, 'data.zip')
-                s3_client.download_file(input_bucket, file_key, local_zip)
+def download_and_extract_from_s3(s3_prefix, extract_to='/tmp'):
+    objects = s3_client.list_objects_v2(Bucket=BUCKET_NAME, Prefix=s3_prefix)
+    
+    if 'Contents' in objects:
+        for obj in objects['Contents']:
+            s3_key = obj['Key']
+            if s3_key.endswith('.zip'):
+                with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+                    s3_client.download_fileobj(BUCKET_NAME, s3_key, temp_file)
+                    temp_file_path = temp_file.name
                 
-                with zipfile.ZipFile(local_zip, 'r') as zip_ref:
-                    zip_ref.extractall(tmpdir)
+                # Extraer el archivo ZIP
+                with zipfile.ZipFile(temp_file_path, 'r') as zip_ref:
+                    zip_ref.extractall(extract_to)
                 
-                # Process each NetCDF file
-                combined_dataset = None
-                for netcdf_file in Path(tmpdir).glob('*.nc'):
-                    print(f"Processing NetCDF file {netcdf_file}...")
-                    dataset = xr.open_dataset(netcdf_file)
-                    
-                    # Combine datasets if needed
-                    if combined_dataset is None:
-                        combined_dataset = dataset
-                    else:
-                        combined_dataset = xr.concat([combined_dataset, dataset], dim='time')
+                print(f"Archivo {s3_key} descargado y extraído en {extract_to}")
+    else:
+        print(f"No se encontraron objetos en {s3_prefix}")
 
-                if combined_dataset is not None:
-                    # Save the combined dataset to S3
-                    combined_nc_file = os.path.join(tmpdir, f"combined_{year}.nc")
-                    combined_dataset.to_netcdf(combined_nc_file)
-                    
-                    s3_client.upload_file(combined_nc_file, output_bucket, f"{processed_path}combined_{year}.nc")
-                    print(f"Uploaded combined NetCDF to {output_bucket}/{processed_path}combined_{year}.nc")
+def process_netcdf_files(data_dir='/tmp'):
+    files = [os.path.join(data_dir, f) for f in os.listdir(data_dir) if f.endswith('.nc')]
+    print(f"Procesando archivos: {files}...")
+    
+    # Leer múltiples archivos NetCDF usando xarray
+    ds = xr.open_mfdataset(files, combine='by_coords', chunks={'time': 10})
+    return ds
 
-def main():
-    input_bucket = 'maize-climate-data-store'
-    output_bucket = 'maize-climate-data-processed'
-    years = ['2023']  # List of years to process
+def print_dataset_summary(ds):
+    print("Resumen del Dataset Combinado:")
+    print(ds)
+    print("\nVariables disponibles:")
+    for var in ds.data_vars:
+        print(f"{var}:")
+        data = ds[var].values
+        print(f" - Shape: {data.shape}")
+        print(f" - Non-NaN Values: {np.count_nonzero(~np.isnan(data))}")
+        # Imprimir una muestra de los datos
+        print(f" - Sample Data:\n{data.flatten()[:10]}")
 
-    process_netcdf_files(input_bucket, output_bucket, years)
+def process_year_folder(year):
+    variables = [
+        "crop_development_stage",
+        "total_above_ground_production",
+        "total_weight_storage_organs"
+    ]
+    
+    for var in variables:
+        s3_prefix = f'crop_productivity_indicators/{year}/{var}_year_{year}.zip'
+        download_and_extract_from_s3(s3_prefix)
+        
+        # Procesar los archivos NetCDF
+        ds = process_netcdf_files(data_dir='/tmp')
+        
+        # Imprimir el resumen del dataset combinado
+        if ds:
+            print_dataset_summary(ds)
+        
+        # Limpiar archivos temporales
+        for file in os.listdir('/tmp'):
+            file_path = os.path.join('/tmp', file)
+            if os.path.isfile(file_path):
+                os.remove(file_path)
 
-if __name__ == "__main__":
-    main()
+# Variables y años
+years = ["2023"]
+
+# Procesar los datos para cada año
+for year in years:
+    process_year_folder(year)
+
+print("Procesamiento completado.")
