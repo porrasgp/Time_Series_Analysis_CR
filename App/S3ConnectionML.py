@@ -2,8 +2,8 @@ import os
 import boto3
 import zipfile
 import tempfile
-import pandas as pd
 import numpy as np
+import pandas as pd
 from netCDF4 import Dataset
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
@@ -30,7 +30,6 @@ s3_client = boto3.client(
 
 # Función para listar y descargar todos los objetos en una carpeta
 def download_all_from_s3(s3_prefix, extract_to='/tmp'):
-    # Lista de todos los objetos dentro de la carpeta (prefijo)
     objects = s3_client.list_objects_v2(Bucket=BUCKET_NAME, Prefix=s3_prefix)
     
     if 'Contents' in objects:
@@ -86,45 +85,50 @@ variables = {
 all_data = pd.DataFrame()
 
 for var_name, file_name in variables.items():
-    file_path = f"/tmp/{file_name}"  # Ubicación del archivo extraído
+    file_path = f"/tmp/{file_name}"
     if os.path.isfile(file_path):
         var_data = read_netcdf_with_chunks(file_path, var_name)
         if var_data.size > 0:
-            all_data[var_name] = var_data if var_name not in all_data else np.concatenate((all_data[var_name], var_data))
+            all_data[var_name] = var_data
+        else:
+            print(f"No se encontraron datos para '{var_name}' en {file_path}")
     else:
         print(f"Archivo {file_name} no encontrado en {file_path}")
 
 # Verificar si los datos se han cargado correctamente
-print(all_data.head())
-print(all_data.describe())
-
-# Dividir los datos en conjunto de entrenamiento y prueba
-# Asegúrate de que las columnas requeridas existen en el DataFrame
-if "Total Above Ground Production (TAGP)" in all_data.columns and "Total Weight Storage Organs (TWSO)" in all_data.columns:
-    train_data, test_data = train_test_split(all_data, test_size=0.2, random_state=42)
-
-    # Entrenar un modelo de regresión lineal
-    model = LinearRegression()
-    model.fit(train_data[["Total Above Ground Production (TAGP)", "Total Weight Storage Organs (TWSO)"]], train_data["Crop Development Stage (DVS)"])
-
-    # Realizar predicciones
-    predictions = model.predict(test_data[["Total Above Ground Production (TAGP)", "Total Weight Storage Organs (TWSO)"]])
-
-    # Evaluar el modelo
-    mse = mean_squared_error(test_data["Crop Development Stage (DVS)"], predictions)
-    r2 = r2_score(test_data["Crop Development Stage (DVS)"], predictions)
-
-    print(f"MSE: {mse}")
-    print(f"R^2: {r2}")
-
-    # Graficar los resultados
-    plt.figure(figsize=(10, 6))
-    sns.scatterplot(x=test_data["Crop Development Stage (DVS)"], y=predictions, label="Predicciones")
-    sns.lineplot(x=test_data["Crop Development Stage (DVS)"], y=test_data["Crop Development Stage (DVS)"], color='red', label="Valor Real")
-    plt.xlabel("Crop Development Stage (DVS)")
-    plt.ylabel("Predicciones")
-    plt.title("Predicciones vs. Valores Reales")
-    plt.legend()
-    plt.show()
+if all_data.empty:
+    print("No se han cargado datos en el DataFrame.")
 else:
-    print("Las columnas necesarias para el modelo no están presentes en los datos.")
+    print(all_data.head())
+    print(all_data.describe())
+
+    # Dividir los datos en conjunto de entrenamiento y prueba
+    if "Total Above Ground Production (TAGP)" in all_data.columns and "Total Weight Storage Organs (TWSO)" in all_data.columns:
+        # Asegúrate de que las columnas necesarias existan
+        train_data, test_data = train_test_split(all_data, test_size=0.2, random_state=42)
+
+        # Entrenar un modelo de regresión lineal
+        model = LinearRegression()
+        model.fit(train_data[["Total Above Ground Production (TAGP)", "Total Weight Storage Organs (TWSO)"]], train_data["Crop Development Stage (DVS)"])
+
+        # Realizar predicciones
+        predictions = model.predict(test_data[["Total Above Ground Production (TAGP)", "Total Weight Storage Organs (TWSO)"]])
+
+        # Evaluar el modelo
+        mse = mean_squared_error(test_data["Crop Development Stage (DVS)"], predictions)
+        r2 = r2_score(test_data["Crop Development Stage (DVS)"], predictions)
+
+        print(f"MSE: {mse}")
+        print(f"R^2: {r2}")
+
+        # Graficar los resultados
+        plt.figure(figsize=(10, 6))
+        sns.scatterplot(x=test_data["Crop Development Stage (DVS)"], y=predictions, label="Predicciones")
+        sns.lineplot(x=test_data["Crop Development Stage (DVS)"], y=test_data["Crop Development Stage (DVS)"], color='red', label="Valor Real")
+        plt.xlabel("Crop Development Stage (DVS)")
+        plt.ylabel("Predicciones")
+        plt.title("Predicciones vs. Valores Reales")
+        plt.legend()
+        plt.show()
+    else:
+        print("Las columnas necesarias para el modelo no están presentes en los datos.")
