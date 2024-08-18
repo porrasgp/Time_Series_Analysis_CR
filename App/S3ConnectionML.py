@@ -26,12 +26,15 @@ s3_client = boto3.client(
 class DataFrameBuilder:
     def __init__(self):
         self.data_list = []
-    
-    def add_data(self, year, variable_name, data):
+
+    def add_data(self, year, variable_name, lat, lon, time, values):
         df = pd.DataFrame({
             'Year': year,
             'Variable': variable_name,
-            'Data': data
+            'Latitude': lat,
+            'Longitude': lon,
+            'Time': time,
+            'Values': values
         })
         self.data_list.append(df)
     
@@ -65,22 +68,37 @@ def list_netcdf_variables(file_path):
         print(f"Variables en {file_path}: {variables}")
     return variables
 
-def read_netcdf_with_chunks(file_path, variable_name, chunk_size=1000):
+def read_netcdf_with_chunks(file_path, variable_names, chunk_size=1000):
     data = []
+    latitudes = []
+    longitudes = []
+    times = []
     
     with Dataset(file_path, 'r') as nc:
-        if variable_name in nc.variables:
-            var_data = nc.variables[variable_name]
-            for i in range(0, var_data.shape[0], chunk_size):
-                chunk = var_data[i:i+chunk_size].flatten()
-                data.append(chunk)
-        else:
-            print(f"Advertencia: '{variable_name}' no encontrado en {file_path}")
+        for variable_name in variable_names:
+            if variable_name in nc.variables:
+                var_data = nc.variables[variable_name]
+                for i in range(0, var_data.shape[0], chunk_size):
+                    chunk = var_data[i:i+chunk_size].flatten()
+                    data.append(chunk)
+                
+                # Assuming lat, lon, and time are in the same dimension as var_data
+                if 'lat' in nc.variables:
+                    latitudes.append(nc.variables['lat'][:].flatten())
+                if 'lon' in nc.variables:
+                    longitudes.append(nc.variables['lon'][:].flatten())
+                if 'time' in nc.variables:
+                    times.append(nc.variables['time'][:].flatten())
+            else:
+                print(f"Advertencia: '{variable_name}' no encontrado en {file_path}")
     
-    if len(data) > 0:
-        return np.concatenate(data)
-    else:
-        return np.array([])  # Retorna un array vacío si no se encuentra la variable
+    # Concatenate the lists to form arrays
+    return {
+        'lat': np.concatenate(latitudes) if latitudes else np.array([]),
+        'lon': np.concatenate(longitudes) if longitudes else np.array([]),
+        'time': np.concatenate(times) if times else np.array([]),
+        'values': np.concatenate(data) if data else np.array([])
+    }
 
 def process_netcdf_files(data_dir='/tmp', builder=None):
     files = [f for f in os.listdir(data_dir) if f.endswith('.nc')]
@@ -90,11 +108,11 @@ def process_netcdf_files(data_dir='/tmp', builder=None):
         print(f"Procesando {file_name}...")
         file_variables = list_netcdf_variables(file_path)
         
-        for variable_name in file_variables:
-            data = read_netcdf_with_chunks(file_path, variable_name)
-            if len(data) > 0:
-                year = file_name.split('_')[2]
-                builder.add_data(year, variable_name, data)
+        # Extract lat, lon, time, and values
+        data = read_netcdf_with_chunks(file_path, file_variables)
+        if len(data['values']) > 0:
+            year = file_name.split('_')[2]
+            builder.add_data(year, file_variables[0], data['lat'], data['lon'], data['time'], data['values'])
 
 def upload_to_s3(df, s3_prefix):
     # Save the DataFrame to a CSV file
