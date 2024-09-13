@@ -30,15 +30,14 @@ years_dict = {
 
 # Define the variables to retrieve
 variables = {
-    'mid_tropospheric_columns_of_atmospheric_carbon_dioxide': 'MidTropospheric_CO2',
-    'column_average_dry_air_mole_fraction_of_atmospheric_carbon_dioxide': 'XCO2'
+    'mid_tropospheric_columns_of_atmospheric_carbon_dioxide': 'MidTropospheric_CO2'
 }
 
 # Define sensor and algorithm list
 sensor_and_algorithm_list = [
     'airs_nlis', 'iasi_metop_a_nlis', 'iasi_metop_b_nlis', 'iasi_metop_c_nlis',
     'sciamachy_wfmd', 'sciamachy_besd', 'tanso_fts_ocfp', 'tanso_fts_srmp',
-    'tanso2_fts_srmp'
+    'tanso2_fts_srmp'  # removed 'merged_obs4mips'
 ]
 
 # Define version
