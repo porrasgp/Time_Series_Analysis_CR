@@ -41,12 +41,11 @@ sensor_and_algorithm_list = ['airs_nlis', 'iasi_metop_a_nlis',
             ]
 # Process each variable and year in batches
 for var, var_name in variables.items():
-    for year in years:
         request = {
             'processing_level': ['level_2', 'level_3'],
             'variable': [var],
             'sensor_and_algorithm': sensor_and_algorithm_list,
-            'year': [year],
+            'year': [years],
             'version': ['latest'],
             'data_format': 'zip'
         }
