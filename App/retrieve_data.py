@@ -19,7 +19,7 @@ if not AWS_ACCESS_KEY_ID or not AWS_SECRET_ACCESS_KEY or not AWS_REGION:
 
 client = cdsapi.Client()
 
-# Define years to process for each sensor
+# Define years for each sensor
 years = {
     'airs_nlis': ['2003', '2004', '2005', '2006', '2007'],
     'iasi_metop_a_nlis': ['2007', '2008', '2009', '2010', '2011', '2012', '2013', '2014', '2015', '2016', '2017', '2018', '2019', '2020', '2021'],
@@ -46,7 +46,7 @@ sensor_and_versions = {
 months = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12']
 days = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', '23', '24', '25', '26', '27', '28', '29', '30', '31']
 
-# Process each variable and year in batches
+# Process each variable, sensor, and year in batches
 for var, var_name in variables.items():
     for sensor, version in sensor_and_versions.items():
         for year in years[sensor]:
