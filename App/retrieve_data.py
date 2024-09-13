@@ -49,7 +49,7 @@ days = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12', 
 # Process each variable, sensor, and year in batches
 for var, var_name in variables.items():
     for sensor, version in sensor_and_versions.items():
-        for year in years[sensor]:
+        for year in years.get(sensor, []):
             request = {
                 'processing_level': ['level_2'],  # Adjust level if needed
                 'variable': [var],
