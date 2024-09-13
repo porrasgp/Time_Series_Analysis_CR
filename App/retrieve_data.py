@@ -33,7 +33,7 @@ variables = {
     'mid_tropospheric_columns_of_atmospheric_carbon_dioxide': 'MidTropospheric_CO2'
 }
 
-# Define sensor and algorithm list with their respective versions
+# Define sensor and versions
 sensor_and_versions = {
     'airs_nlis': '3.0',
     'iasi_metop_a_nlis': '10.1',
@@ -42,7 +42,7 @@ sensor_and_versions = {
     'tanso_fts_srfp': '2.0.0'
 }
 
-# Define months and days
+# Define months and days as arrays
 months = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12']
 days = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', '23', '24', '25', '26', '27', '28', '29', '30', '31']
 
@@ -50,51 +50,49 @@ days = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12', 
 for var, var_name in variables.items():
     for sensor, version in sensor_and_versions.items():
         for year in years[sensor]:
-            for month in months:
-                for day in days:
-                    request = {
-                        'processing_level': ['level_2'],  # Adjust level if needed
-                        'variable': [var],
-                        'sensor_and_algorithm': [sensor],
-                        'year': [year],
-                        'month': [month],
-                        'day': [day],
-                        'version': [version],
-                        'data_format': 'zip'
-                    }
+            request = {
+                'processing_level': ['level_2'],  # Adjust level if needed
+                'variable': [var],
+                'sensor_and_algorithm': [sensor],
+                'year': [year],
+                'month': months,
+                'day': days,
+                'version': [version],
+                'data_format': 'zip'
+            }
 
-                    # Temporary File method
-                    try:
-                        with tempfile.NamedTemporaryFile(delete=False) as temp_file:
-                            temp_file_path = temp_file.name
-                            print(f"Retrieving data for {var_name} with {sensor} on {year}-{month}-{day}...")
+            # Temporary File method
+            try:
+                with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+                    temp_file_path = temp_file.name
+                    print(f"Retrieving data for {var_name} with {sensor} in {year}...")
 
-                            # Retrieve data and save it to the temporary file
-                            response = client.retrieve("satellite-carbon-dioxide", request)
-                            response.download(temp_file_path)
-                            
-                            # Check if file is empty
-                            if os.path.getsize(temp_file_path) > 0:
-                                # Upload the temporary file to S3
-                                s3_client = boto3.client(
-                                    's3',
-                                    aws_access_key_id=AWS_ACCESS_KEY_ID,
-                                    aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
-                                    region_name=AWS_REGION
-                                )
+                    # Retrieve data and save it to the temporary file
+                    response = client.retrieve("satellite-carbon-dioxide", request)
+                    response.download(temp_file_path)
+                    
+                    # Check if file is empty
+                    if os.path.getsize(temp_file_path) > 0:
+                        # Upload the temporary file to S3
+                        s3_client = boto3.client(
+                            's3',
+                            aws_access_key_id=AWS_ACCESS_KEY_ID,
+                            aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+                            region_name=AWS_REGION
+                        )
 
-                                s3_key = f"{year}/{var_name}/{sensor}/{year}-{month}-{day}.zip"
-                                s3_client.upload_file(temp_file_path, BUCKET_NAME, s3_key)
-                                print(f"File uploaded to S3 bucket {BUCKET_NAME} with key {s3_key}")
-                            else:
-                                print(f"No data retrieved for {var_name} with {sensor} on {year}-{month}-{day}. No folder created.")
+                        s3_key = f"{year}/{var_name}/{sensor}/{year}.zip"
+                        s3_client.upload_file(temp_file_path, BUCKET_NAME, s3_key)
+                        print(f"File uploaded to S3 bucket {BUCKET_NAME} with key {s3_key}")
+                    else:
+                        print(f"No data retrieved for {var_name} with {sensor} in {year}. No folder created.")
 
-                    except Exception as e:
-                        print(f"Error processing {var_name} with {sensor} on {year}-{month}-{day}: {e}")
+            except Exception as e:
+                print(f"Error processing {var_name} with {sensor} for {year}: {e}")
 
-                    finally:
-                        # Clean up the temporary file
-                        try:
-                            os.remove(temp_file_path)
-                        except:
-                            pass
+            finally:
+                # Clean up the temporary file
+                try:
+                    os.remove(temp_file_path)
+                except:
+                    pass
