@@ -54,7 +54,7 @@ for var, var_name in variables.items():
                 'processing_level': ['level_2'],  # Adjust level if needed
                 'variable': [var],
                 'sensor_and_algorithm': [sensor],
-                'year': [year],
+                'year': [str(year)],  # Ensure year is a string
                 'month': months,
                 'day': days,
                 'version': [version],
