@@ -24,7 +24,7 @@ jobs:
     - name: Copy .cdsapirc to home directory
       run: cp App/.cdsapirc ~/.cdsapirc
 
-    - name: XCO2.py
+    - name: retrieve_data.py
       working-directory: App
       run: python XCO2.py
       timeout-minutes: 120
