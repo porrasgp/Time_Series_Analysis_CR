@@ -48,19 +48,15 @@ days = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12', 
 
 # Process each variable, sensor, and years in batches
 for var, var_name in variables.items():
-    for sensor, version in sensor_and_versions.items():
-        sensor_years = years.get(sensor, [])
         if not sensor_years:
             continue
 
         request = {
             'processing_level': ['level_2'],  # Adjust level if needed
             'sensor_and_algorithm': [sensor],  # Correct sensor name used here
-            'year': sensor_years,  # Use all years for this sensor
             'month': months,
             'day': days,
-            'version': [version],
-            'data_format': 'zip'
+            'version': [version]
         }
 
         # Temporary File method
