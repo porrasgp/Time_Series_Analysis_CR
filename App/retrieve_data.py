@@ -55,7 +55,6 @@ for var, var_name in variables.items():
 
         request = {
             'processing_level': ['level_2'],  # Adjust level if needed
-            'variable': [var],
             'sensor_and_algorithm': [sensor],  # Correct sensor name used here
             'year': sensor_years,  # Use all years for this sensor
             'month': months,
