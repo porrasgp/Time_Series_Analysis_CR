@@ -52,7 +52,7 @@ for var, var_name in variables.items():
         sensor_years = years.get(sensor, [])
         if not sensor_years:
             continue
-    dataset = "satellite-carbon-dioxide"
+
         request = {
             'processing_level': ['level_2'],  # Adjust level if needed
             'variable': [var],
@@ -71,7 +71,7 @@ for var, var_name in variables.items():
                 print(f"Retrieving data for {var_name} with {sensor} for years {sensor_years}...")
 
                 # Retrieve data and save it to the temporary file
-                response = client.retrieve("satellite-carbon-dioxide", request)
+                response = client.retrieve("satellite-carbon-dioxide", request)  # Use dataset name here
                 response.download(temp_file_path)
                 
                 # Check if file is empty
