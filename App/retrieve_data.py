@@ -52,7 +52,7 @@ for var, var_name in variables.items():
         sensor_years = years.get(sensor, [])
         if not sensor_years:
             continue
-
+dataset = "satellite-carbon-dioxide"
         request = {
             'processing_level': ['level_2'],  # Adjust level if needed
             'variable': [var],
