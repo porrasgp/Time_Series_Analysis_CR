@@ -25,7 +25,7 @@ years = {
     'iasi_metop_a_nlis': ['2007', '2008', '2009', '2010', '2011', '2012', '2013', '2014', '2015', '2016', '2017', '2018', '2019', '2020', '2021'],
     'iasi_metop_b_nlis': ['2013', '2014', '2015', '2016', '2017', '2018', '2019', '2020', '2021', '2022'],
     'iasi_metop_c_nlis': ['2019', '2020', '2021', '2022'],
-    'tanso_fts_srfp': ['2019', '2020', '2021', '2022']
+    'tanso2_fts_srfp': ['2019', '2020', '2021', '2022']  # Update to correct name
 }
 
 # Define the variables to retrieve
@@ -39,7 +39,7 @@ sensor_and_versions = {
     'iasi_metop_a_nlis': '10.1',
     'iasi_metop_b_nlis': '10.1',
     'iasi_metop_c_nlis': '10.1',
-    'tanso_fts_srfp': '2.0.0'
+    'tanso2_fts_srfp': '2.0.0'  # Update to correct name
 }
 
 # Define months and days as arrays
@@ -56,7 +56,7 @@ for var, var_name in variables.items():
         request = {
             'processing_level': ['level_2'],  # Adjust level if needed
             'variable': [var],
-            'sensor_and_algorithm': [sensor],
+            'sensor_and_algorithm': [sensor],  # Correct sensor name used here
             'year': sensor_years,  # Use all years for this sensor
             'month': months,
             'day': days,
@@ -71,7 +71,7 @@ for var, var_name in variables.items():
                 print(f"Retrieving data for {var_name} with {sensor} for years {sensor_years}...")
 
                 # Retrieve data and save it to the temporary file
-                response = client.retrieve("satellite-carbon-dioxide", request)  # Use dataset name here
+                response = client.retrieve("satellite-carbon-dioxide", request)
                 response.download(temp_file_path)
                 
                 # Check if file is empty
