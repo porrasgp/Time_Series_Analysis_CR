@@ -35,7 +35,7 @@ jobs:
 
     - name: Xco2.py
       working-directory: App
-      run: python XCO2.py
+      run: python main.py
       timeout-minutes: 120
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
