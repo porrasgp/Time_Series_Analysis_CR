@@ -4,7 +4,7 @@ import tempfile
 from dotenv import load_dotenv
 import cdsapi
 
-# Load environment variables (only needed if running locally with a .env file)
+#Load environment variables (only needed if running locally with a .env file)
 if not os.getenv("GITHUB_ACTIONS"):
     load_dotenv()
 
